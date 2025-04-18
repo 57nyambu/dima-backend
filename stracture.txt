@@ -1,0 +1,64 @@
+my_project/
+│── manage.py
+│── my_project/
+│   ├── settings.py
+│   ├── urls.py
+│
+├── apps/
+│   ├── frontend/  # Handles the frontend HTML, CSS, JS
+│   │   ├── templates/frontend/
+│   │   │   ├── auth/  # Authentication pages
+│   │   │   │   ├── login.html
+│   │   │   │   ├── register.html
+│   │   │   │   ├── reset_password.html
+│   │   │   │   ├── profile.html
+│   │   │   │
+│   │   │   ├── products/  # Product listing and details
+│   │   │   │   ├── all_products.html
+│   │   │   │   ├── product_detail.html
+│   │   │   │   ├── categories.html
+│   │   │   │
+│   │   │   ├── cart/  # Shopping cart and checkout
+│   │   │   │   ├── cart.html
+│   │   │   │   ├── checkout.html
+│   │   │   │   ├── order_summary.html
+│   │   │   │
+│   │   │   ├── orders/  # Order history and tracking
+│   │   │   │   ├── my_orders.html
+│   │   │   │   ├── order_detail.html
+│   │   │   │
+│   │   │   ├── base.html  # Main layout template
+│   │   │   ├── home.html  # Homepage
+│   │   │   ├── contact.html  # Contact page
+│   │   │   ├── about.html  # About page
+│   │   │   ├── faq.html  # Frequently asked questions
+│   │   │
+│   │   ├── static/frontend/  # Static assets
+│   │   │   ├── css/
+│   │   │   │   ├── main.css
+│   │   │   │   ├── auth.css
+│   │   │   │   ├── products.css
+│   │   │   │   ├── cart.css
+│   │   │   │
+│   │   │   ├── js/
+│   │   │   │   ├── main.js
+│   │   │   │   ├── auth.js
+│   │   │   │   ├── cart.js
+│   │   │   │   ├── orders.js
+│   │   │   │
+│   │   │   ├── images/
+│   │   │
+│   │   ├── views.py  # Renders frontend pages
+│   │   ├── urls.py  # Routes for frontend pages
+│   │   ├── forms.py  # If using Django Forms
+│
+│   ├── api/  # Django Rest Framework API
+│   │   ├── serializers.py
+│   │   ├── views.py
+│   │   ├── urls.py
+│   │   ├── models.py
+│   │   ├── permissions.py
+│
+├── static/  # General static files (e.g., global assets)
+├── templates/  # Global templates if needed
+└── requirements.txt  
