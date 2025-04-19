@@ -2,3 +2,21 @@ db.sqlite3
 debug.log
 stracture.txt
 git config --global core.autocrlf input
+.env
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+*.log
+*.pot
+*.mo
+*.egg-info
+*.egg
+*.zip
+*.tar.gz    
+*.tar.bz2
+*.tar.xz
+*.tar.lzma
+test*

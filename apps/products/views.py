@@ -7,7 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.response import Response
 
-class CategoryImageViewSet(ModelViewSet):
+class Category_ImageViewSet(ModelViewSet):
     queryset = CategoryImage.objects.all()
     serializer_class = CategoryImageSerializer
     parser_classes = (MultiPartParser, FormParser)
@@ -55,10 +55,41 @@ class ProductImageViewSet(ModelViewSet):
     serializer_class = ProductImageSerializer
     parser_classes = (MultiPartParser, FormParser)
 
-class ProductViewSet(ModelViewSet):
+class Product_ImageViewSet(ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
+    parser_classes = (MultiPartParser, FormParser)
     lookup_field = 'slug'
+
+    @action(detail=False, methods=['post'])
+    def create_product_with_images(self, request):
+        # Get product data
+        product_data = request.data.copy()
+        product_images = product_data.pop('images', None)
+
+        # Create product first
+        product_serializer = ProductSerializer(data=product_data)
+        if product_serializer.is_valid():
+            product = product_serializer.save()
+
+            # Now handle the image creation
+            created_images = []
+            if product_images:
+                for image in product_images:
+                    image_instance = ProductImage.objects.create(
+                        product=product,
+                        image=image,
+                        alt_text=request.data.get('alt_text', ''),
+                        is_feature=request.data.get('is_feature', False)
+                    )
+                    created_images.append(ProductImageSerializer(image_instance).data)
+
+            return Response({
+                'product': product_serializer.data,
+                'images': created_images
+            }, status=status.HTTP_201_CREATED)
+
+        return Response(product_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def perform_create(self, serializer):
         serializer.save()

@@ -7,9 +7,24 @@ DEBUG = True
 # Allowed hosts: Allow all hosts for local testing
 ALLOWED_HOSTS = ['*']
 
+DATABASES =  {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': env('DB_NAME'),
+        'USER': env('DB_USER'),
+        'PASSWORD': env('DB_PASSWORD'),
+        'HOST': env('DB_HOST'),
+        'PORT': env('DB_PORT'),
+        'OPTIONS': {
+            'sslmode': 'require',
+        },
+    }
+}
+
 # CORS settings: Allow frontend (Vite) to access Django API
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",  # Vite default dev server
+    "https://elaborate-axolotl-e6c495.netlify.app"
 ]
 
 # Allow all methods and headers
