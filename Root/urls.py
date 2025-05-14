@@ -5,8 +5,8 @@ from django.conf import settings
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/auth/', include('apps.accounts.urls.auth')),
-    path('api/user-mgt/', include('apps.accounts.urls.user_mgt')),
-    path('api/', include('apps.products.urls')),
+    path('api/v1/auth/', include('apps.accounts.urls.auth')),
+    path('api/v1/user-mgt/', include('apps.accounts.urls.user_mgt')),
+    path('api/v1/', include('apps.products.urls')),
     #path('api/categories/', include('apps.products.urls.catg'))
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

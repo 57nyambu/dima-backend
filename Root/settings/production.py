@@ -2,7 +2,7 @@ import dj_database_url
 from Root.settings.base import *
 
 # Set DEBUG to True for local testing
-DEBUG = True
+DEBUG = False
 
 # Allowed hosts: Allow all hosts for local testing
 ALLOWED_HOSTS = ['*']

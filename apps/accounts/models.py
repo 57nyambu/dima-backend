@@ -2,7 +2,7 @@ from django.contrib.auth.models import AbstractBaseUser, PermissionManager
 from django.db import models
 from .managers import CustomUserManager
 from django.db.models import PROTECT
-
+from django.utils.text import slugify
 
 class Role(models.Model):
     name = models.CharField(max_length=255, default='customer')
@@ -14,6 +14,7 @@ class Role(models.Model):
 
 class CustomUser(AbstractBaseUser):
     email = models.EmailField(unique=True)
+    username = models.CharField(max_length=225, unique=False)
     date_joined = models.DateTimeField(auto_now_add=True)
     last_login = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
@@ -35,7 +36,7 @@ class CustomUser(AbstractBaseUser):
 
     def __str__(self):
         return self.email
-    
+
     def has_perm(self, perm, obj=None):
         "Returns True if the user has the specified permission"
         return self.is_superuser

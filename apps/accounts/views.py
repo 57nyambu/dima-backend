@@ -230,7 +230,7 @@ class TestProtectedView(APIView):
 
 
 class AdminUserViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = CustomUser.objects.all().select_related('subscription', 'subscription__plan')
+    queryset = CustomUser.objects.all()
     serializer_class = AdminUserDetailSerializer
     #permission_classes = [IsAdminUser]
     filter_backends = [SearchFilter, OrderingFilter]
