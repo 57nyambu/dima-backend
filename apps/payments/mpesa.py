@@ -1,7 +1,7 @@
-import requests
 from django.conf import settings
 from datetime import datetime
 import base64
+import requests
 
 
 class MpesaGateway:
