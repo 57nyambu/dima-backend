@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Business Verification Update</h2>
+<p>We regret to inform you that your business <strong>{{ business.name }}</strong> verification application was not approved at this time.</p>
+
+<p>Common reasons for rejection include:</p>
+<ul>
+    <li>Incomplete documentation</li>
+    <li>Unclear business information</li>
+    <li>Document quality issues</li>
+</ul>
+
+<p>Please review your application and submit any additional required information.</p>
+
+<p>If you need assistance, please contact our support team at <a href="mailto:{{ support_email }}">{{ support_email }}</a>.</p>
+
+<a href="{{ site_url }}/business/verification" style="...">Review Your Verification Application</a>
+{% endblock %}

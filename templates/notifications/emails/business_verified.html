@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Congratulations {{ user.get_full_name }}!</h2>
+<p>Your business <strong>{{ business.name }}</strong> has been successfully verified on {{ site_name }}.</p>
+
+<p>This means:</p>
+<ul>
+    <li>Your business now has a verified badge</li>
+    <li>Customers will trust your business more</li>
+    <li>You may qualify for special marketplace features</li>
+</ul>
+
+<p>You can now enjoy all the benefits of a verified seller on our platform.</p>
+
+<a href="{{ dima }}/business/dashboard" style="...">Go to Your Business Dashboard</a>
+{% endblock %}

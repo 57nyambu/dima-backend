@@ -14,11 +14,14 @@ class Role(models.Model):
 
 class CustomUser(AbstractBaseUser):
     email = models.EmailField(unique=True)
-    username = models.CharField(max_length=225, unique=False)
+    username = models.CharField(max_length=225, unique=False,  null=True, blank=True)
+    first_name = models.CharField(max_length=225, null=True, blank=True)
+    last_name = models.CharField(max_length=225, null=True, blank=True)
+    phone_number = models.CharField(max_length=15, null=True, blank=True)
     date_joined = models.DateTimeField(auto_now_add=True)
     last_login = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
-    role = models.ForeignKey('Role', on_delete=PROTECT, null=True)
+    role = models.ForeignKey(Role, on_delete=PROTECT, default=1, related_name='users')
     is_seller = models.BooleanField(default=False)
     is_admin = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
@@ -40,6 +43,21 @@ class CustomUser(AbstractBaseUser):
     def has_perm(self, perm, obj=None):
         "Returns True if the user has the specified permission"
         return self.is_superuser
+    
+    def has_business_permission(self, business_id, codename):
+        return self.business_memberships.filter(
+            business_id=business_id,
+            is_active=True,
+            roles__permissions__codename=codename
+        ).exists()
+
+    @property
+    def is_business_owner(self):
+        return self.owned_businesses.exists()
+
+    @property
+    def is_business_member(self):
+        return self.business_memberships.filter(is_active=True).exists()
 
     def has_module_perms(self, app_label):
         "Returns True if the user has permissions to view the app `app_label`"
@@ -47,3 +65,4 @@ class CustomUser(AbstractBaseUser):
 
     def tokens(self):
         pass
+

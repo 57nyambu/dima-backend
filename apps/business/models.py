@@ -3,6 +3,10 @@ from django.db import models
 from apps.accounts.models import CustomUser
 from django.utils.text import slugify
 from django.core.exceptions import ValidationError
+from django.utils import timezone
+import uuid
+from .constants import BUSINESS_PERMISSIONS
+
 
 class Business(models.Model):
     CATEGORY_TYPE = [
@@ -51,7 +55,172 @@ class Business(models.Model):
         return f"{self.owner} - {self.name} - ({self.get_business_type_display()})"
 
 
-class PaymentMethods(models.Model):
+class BusinessPermission(models.Model):
+    """
+    Granular permissions for business operations
+    """
+    PERMISSION_CHOICES = [
+        (value, key.replace('_', ' ').title()) 
+        for key, value in BUSINESS_PERMISSIONS.items()
+    ]
+
+    codename = models.CharField(max_length=50, choices=PERMISSION_CHOICES, unique=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = 'Business Permission'
+        verbose_name_plural = 'Business Permissions'
+        ordering = ['codename']
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def get_all_codenames(cls):
+        """Returns all available permission codenames"""
+        return list(BUSINESS_PERMISSIONS.values())
+
+
+class BusinessRole(models.Model):
+    """
+    Predefined roles with sets of permissions
+    """
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    permissions = models.ManyToManyField(BusinessPermission)
+    is_default = models.BooleanField(default=False)
+    
+    class Meta:
+        ordering = ['name']
+    
+    def __str__(self):
+        return self.name
+    
+    @classmethod
+    def create_default_roles(cls):
+        # Map of default roles and their permissions
+        default_roles = {
+            'Owner': [
+                'product.add', 'product.edit', 'product.delete', 'product.view',
+                'order.view', 'order.process', 'order.cancel', 'order.refund',
+                'business.edit_profile', 'business.manage_team', 'business.manage_settings',
+                'analytics.view_sales', 'analytics.view_customers',
+                'financial.view_earnings', 'financial.request_payout'
+            ],
+            'Manager': [
+                'product.add', 'product.edit', 'product.view',
+                'order.view', 'order.process', 'order.cancel',
+                'analytics.view_sales', 'analytics.view_customers',
+                'financial.view_earnings'
+            ],
+            'Product Specialist': [
+                'product.add', 'product.edit', 'product.view',
+                'product.manage_inventory'
+            ],
+            'Customer Support': [
+                'order.view', 'order.process', 'order.refund'
+            ],
+            'Analyst': [
+                'analytics.view_sales', 'analytics.view_customers',
+                'financial.view_earnings'
+            ]
+        }
+        
+        for role_name, permissions in default_roles.items():
+            role, created = cls.objects.get_or_create(
+                name=role_name,
+                defaults={'is_default': True}
+            )
+            if created:
+                perms = BusinessPermission.objects.filter(
+                    codename__in=permissions
+                )
+                role.permissions.set(perms)
+
+class BusinessTeamMember(models.Model):
+    """
+    Associates users with businesses and assigns roles
+    """
+    business = models.ForeignKey(Business, on_delete=models.CASCADE, related_name='team_members')
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='business_memberships')
+    roles = models.ManyToManyField(BusinessRole)
+    is_active = models.BooleanField(default=True)
+    joined_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ('business', 'user')
+        ordering = ['-joined_at']
+    
+    def __str__(self):
+        return f"{self.user.email} at {self.business.name}"
+    
+    def has_permission(self, permission_codename):
+        """
+        Check if this team member has a specific permission
+        """
+        if self.business.owner == self.user:
+            return True
+            
+        return self.roles.filter(
+            permissions__codename=permission_codename
+        ).exists()
+    
+    def get_permissions(self):
+        """
+        Returns all permissions this team member has
+        """
+        if self.business.owner == self.user:
+            return BusinessPermission.get_all_codenames()
+            
+        return list(self.roles.values_list(
+            'permissions__codename',
+            flat=True
+        ).distinct())
+    
+
+class BusinessTeamInvitation(models.Model):
+    """
+    Tracks invitations to join business teams
+    """
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('accepted', 'Accepted'),
+        ('rejected', 'Rejected'),
+        ('expired', 'Expired'),
+    ]
+
+    business = models.ForeignKey(Business, on_delete=models.CASCADE, related_name='invitations')
+    email = models.EmailField()
+    roles = models.ManyToManyField(BusinessRole)
+    invited_by = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='sent_invitations')
+    token = models.UUIDField(default=uuid.uuid4, unique=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Invitation to {self.email} for {self.business.name}"
+    
+    @property
+    def is_expired(self):
+        return timezone.now() > self.expires_at
+    
+    def clean(self):
+        if self.status == 'pending' and self.is_expired:
+            self.status = 'expired'
+    
+    def save(self, *args, **kwargs):
+        if not self.expires_at:
+            self.expires_at = timezone.now() + timezone.timedelta(days=7)
+        super().save(*args, **kwargs)
+
+
+class PaymentMethod(models.Model):
     PAYMENT_TYPE_CHOICES = [
         ('mpesa_till', 'M-Pesa Till'),
         ('mpesa_paybill', 'M-Pesa Paybill'),
@@ -68,6 +237,10 @@ class PaymentMethods(models.Model):
     bank_account_number = models.CharField(max_length=25, blank=True, null=True)
     bank_name = models.CharField(max_length=70, blank=True, null=True)
     card_number = models.CharField(max_length=30, blank=True, null=True)
+
+    class Meta:
+        verbose_name = 'Payment Method'
+        verbose_name_plural = 'Payment Methods'
 
     def clean(self):
         if self.type == 'mpesa_till' and not self.till_number:
@@ -96,8 +269,10 @@ class BusinessReview(models.Model):
     mpesa_code = models.CharField(max_length=20, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta():
-        unique_together = ['user']
+    class Meta:
+        verbose_name = 'Business Review'
+        verbose_name_plural = 'Business Reviews'
+        unique_together = ['product', 'user']
 
     def clean(self):
         if self.product.owner == self.user:

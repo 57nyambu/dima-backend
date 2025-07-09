@@ -53,10 +53,12 @@ class Product(models.Model):
     slug = models.SlugField(max_length=100, unique=True)
     description = models.TextField(blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
-    discounted_price = models.DecimalField(max_digits=10, decimal_places=2)
+    discounted_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     #sku = models.CharField(max_length=100, unique=True)
     stock_qty = models.IntegerField(default=0)
+    sales_count = models.IntegerField(default=0)
     is_active = models.BooleanField(default=True)
+    is_feature = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -67,7 +69,7 @@ class Product(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return self.name, self.category, self.price
+        return f"{self.name} ({self.category}) - {self.price}"
     
 def upload_to(instance, filename):
     return f'products/{instance.product.slug}/{filename}'
@@ -78,15 +80,23 @@ class ProductImage(models.Model):
     thumbnail = ImageSpecField(source='original', processors=[ResizeToFill(300, 300)], format='JPEG', options={'quality': 85})
     medium = ImageSpecField(source='original', processors=[ResizeToFill(600, 600)], format='JPEG', options={'quality': 90})
     is_primary = models.BooleanField(default=False)
-
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ['is_primary', 'created_at']
+        ordering = ['-is_primary', 'created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['product'],
+                condition=models.Q(is_primary=True),
+                name='unique_primary_image_per_product'
+            )
+        ]
 
-    def clean(self):
-        if self.product.business.owner == self.user:
-            raise ValidationError("You cannot review your own product.")
+    def save(self, *args, **kwargs):
+        if self.is_primary:
+            # Unset is_primary for other images of this product
+            ProductImage.objects.filter(product=self.product, is_primary=True).exclude(pk=self.pk).update(is_primary=False)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Image for {self.product.name}"
@@ -102,6 +112,10 @@ class ProductReview(models.Model):
 
     class Meta():
         unique_together = ['product', 'user']
+
+    def clean(self):
+        if self.product.business.owner == self.user:
+            raise ValidationError("You cannot review your own product.")
 
     def __str__(self):
         return f"{self.user.username}"

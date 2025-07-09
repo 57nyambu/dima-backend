@@ -31,11 +31,16 @@ INSTALLED_APPS = [
     'corsheaders',
     'requests',
     'mptt',
+    'drf_spectacular',
     'apps.accounts',
     'apps.products',
     'apps.orders',
     'apps.payments',
     'apps.business',
+    'apps.notifications',
+    'apps.marketplace',
+    'apps.shipping',
+    'apps.core',
 ]
 
 REST_FRAMEWORK = {
@@ -84,7 +89,7 @@ ROOT_URLCONF = 'Root.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],  # Add your templates directory
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -118,13 +123,19 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Dima Api Documentation",
+    "DESCRIPTION": "Dima is a platform that allows users to create and manage their own online stores, providing a seamless shopping experience for customers.",
+    "VERSION": "1.0.0",
+    "SERVER_INCLUDE_SCHEMA": False,
+}
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Africa/Nairobi'
 
 USE_I18N = True
 

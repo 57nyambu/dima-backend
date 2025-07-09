@@ -120,6 +120,7 @@ class LoginView(APIView):
 
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
+    serializer_class=None
 
     def post(self, request):
         try:

@@ -1,9 +1,9 @@
 from rest_framework import serializers
-from .models import Business, PaymentMethods, BusinessReview
+from .models import Business, PaymentMethod, BusinessReview
 
-class PaymentMethodsSerializer(serializers.ModelSerializer):
+class PaymentMethodSerializer(serializers.ModelSerializer):
     class Meta:
-        model = PaymentMethods
+        model = PaymentMethod
         fields = ['type', 'till_number', 'business_number', 
                   'paybill_account_number', 'bank_account_number', 
                   'bank_name', 'card_number']
@@ -44,7 +44,7 @@ class PaymentMethodsSerializer(serializers.ModelSerializer):
         return data
 
 class BusinessSerializer(serializers.ModelSerializer):
-    payment_methods = PaymentMethodsSerializer(many=True, required=False)
+    payment_methods = PaymentMethodSerializer(many=True, required=False)
 
     class Meta:
         model = Business
@@ -71,7 +71,7 @@ class BusinessSerializer(serializers.ModelSerializer):
         
         # Create associated payment methods
         for method_data in payment_methods_data:
-            PaymentMethods.objects.create(business=business, **method_data)
+            PaymentMethod.objects.create(business=business, **method_data)
         
         return business
 
@@ -91,7 +91,7 @@ class BusinessSerializer(serializers.ModelSerializer):
             
             # Create new payment methods
             for method_data in payment_methods_data:
-                PaymentMethods.objects.create(business=instance, **method_data)
+                PaymentMethod.objects.create(business=instance, **method_data)
         
         return instance
 

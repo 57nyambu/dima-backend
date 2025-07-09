@@ -27,9 +27,12 @@ class CategorySerializer(serializers.ModelSerializer):
         read_only_fields = ['slug']
 
 class ProductImageSerializer(serializers.ModelSerializer):
+    thumbnail = serializers.ImageField(read_only=True)
+    medium = serializers.ImageField(read_only=True)
     class Meta:
         model = ProductImage
-        fields = ['id', 'image', 'alt_text', 'is_feature']
+        fields = ['id', 'original', 'thumbnail', 'medium', 'is_primary', 'created_at']
+
 
 class ReviewSerializer(serializers.ModelSerializer):
     class Meta:
@@ -69,7 +72,7 @@ class ProductDetailsSerializer(serializers.ModelSerializer):
             'stock_qty', 'category', 'images', 'reviews', 'business', 'is_in_stock'
         ]
 
-    def get_is_in_stock(self, obj):
+    def get_is_in_stock(self, obj) -> bool:
         return obj.stock_qty > 0
 
 class ProductSerializer(serializers.ModelSerializer):

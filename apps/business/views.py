@@ -1,8 +1,8 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import Business, PaymentMethods, Review
-from .serializers import BusinessSerializer, PaymentMethodsSerializer, ReviewSerializer
+from .models import Business, PaymentMethod, Review
+from .serializers import BusinessSerializer, PaymentMethodSerializer, ReviewSerializer
 from django.db import models
 from rest_framework import serializers
 from rest_framework.permissions import IsAdminUser
@@ -43,12 +43,12 @@ class BusinessViewSet(viewsets.ModelViewSet):
         return Response({'status': 'Business rejected'})
 
 class PaymentMethodsViewSet(viewsets.ReadOnlyModelViewSet):
-    serializer_class = PaymentMethodsSerializer
+    serializer_class = PaymentMethodSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         # Users can only see payment methods of their own businesses
-        return PaymentMethods.objects.filter(business__owner=self.request.user)
+        return PaymentMethod.objects.filter(business__owner=self.request.user)
 
 class ReviewViewSet(viewsets.ModelViewSet):
     queryset = Review.objects.all()

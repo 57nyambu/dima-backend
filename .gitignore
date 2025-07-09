@@ -6,10 +6,11 @@ db.sqlite3
 test*
 *.md
 data.txt
-__pycache__/
+__pycache__
 *.pyc
 models.txt
 .gitattributes
 payload.txt
 doc.txt
 *.backup
+schema.yaml
