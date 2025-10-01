@@ -24,7 +24,8 @@ DATABASES =  {
 # CORS settings: Allow frontend (Vite) to access Django API
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",  # Vite default dev server
-    "https://elaborate-axolotl-e6c495.netlify.app"
+    "https://dima-market.netlify.app",
+    "https://dima.co.ke"
 ]
 
 # Allow all methods and headers
