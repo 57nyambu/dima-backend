@@ -16,4 +16,13 @@ doc.txt
 schema.yaml
 test*
 *.json
+*.csv
+*.xml
+*.yml
+*.ini
+*.cfg
+gunicorn.sock
+gunicorn.log
+*.pot
+staticfiles/
 
