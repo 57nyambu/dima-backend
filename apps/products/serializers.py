@@ -9,10 +9,42 @@ from .models import (
 )
 from django.utils.text import slugify
 
+class ProductReviewSerializer(serializers.ModelSerializer):
+    user = serializers.EmailField(source='user.email', read_only=True)
+    product = serializers.SerializerMethodField()
+    product_id = serializers.PrimaryKeyRelatedField(
+        source='product',
+        queryset=Product.objects.all(),
+        write_only=True
+    )
+
+    class Meta:
+        model = ProductReview
+        fields = ['id', 'product', 'product_id', 'user', 'rating', 
+                 'comment', 'mpesa_code', 'created_at']
+        read_only_fields = ['user', 'created_at']
+
+    def get_product(self, obj):
+        return {
+            'name': obj.product.name,
+            'business': obj.product.business.name,
+            'category': obj.product.category.name,
+            'price': str(obj.product.price)
+        }
+
+    def create(self, validated_data):
+        validated_data['user'] = self.context['request'].user
+        return super().create(validated_data)
+
+    def validate_rating(self, value):
+        if value < 1 or value > 5:
+            raise serializers.ValidationError("Rating must be between 1 and 5.")
+        return value
+
 class CategoryImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = CategoryImage
-        fields = ['id', 'image', 'alt_text', 'is_feature']
+        fields = ['id', 'original', 'thumbnail_small', 'thumbnail_medium', 'thumbnail_large', 'alt_text', 'created_at']
         read_only_fields = ['is_feature']
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -62,18 +94,50 @@ class ProductDetailsSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
     images = ProductImageSerializer(many=True, read_only=True)
     reviews = ReviewSerializer(many=True, read_only=True)
-    business = serializers.StringRelatedField(read_only=True)
+    business = serializers.SerializerMethodField()
     is_in_stock = serializers.SerializerMethodField()
+    avg_rating = serializers.FloatField(read_only=True)
+    review_count = serializers.IntegerField(read_only=True)
+    discount_percentage = serializers.SerializerMethodField()
+    is_low_stock = serializers.BooleanField(read_only=True)
+    view_count = serializers.SerializerMethodField()
+    payment_methods = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
         fields = [
             'id', 'name', 'description', 'price', 'discounted_price',
-            'stock_qty', 'category', 'images', 'reviews', 'business', 'is_in_stock'
+            'stock_qty', 'category', 'images', 'reviews', 'business', 
+            'is_in_stock', 'avg_rating', 'review_count', 'discount_percentage',
+            'is_low_stock', 'view_count', 'payment_methods', 'created_at'
         ]
 
     def get_is_in_stock(self, obj) -> bool:
         return obj.stock_qty > 0
+
+    def get_discount_percentage(self, obj):
+        return obj.discount_percentage
+
+    def get_view_count(self, obj):
+        return obj.search_index.view_count if hasattr(obj, 'search_index') else 0
+
+    def get_business(self, obj):
+        return {
+            'id': obj.business.id,
+            'name': str(obj.business.name),
+            'type': obj.business.get_business_type_display(),
+            'is_verified': obj.business.is_verified,
+            'verification_status': obj.business.verification_status
+        }
+
+    def get_payment_methods(self, obj):
+        return [
+            {
+                'type': method.get_type_display(),
+                'details': method.till_number or method.business_number or method.bank_name
+            }
+            for method in obj.business.payment_methods.all()
+        ]
 
 class ProductSerializer(serializers.ModelSerializer):
     class Meta:

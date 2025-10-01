@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Dima - Discover Amazing Products{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Product cards */
+    .product-card {
+        border: none;
+        border-radius: 0.5rem;
+        transition: box-shadow 0.3s;
+        margin-bottom: 2rem;
+    }
+    .product-card:hover {
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    }
+
+    .hero {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 4rem 0;
+        margin-bottom: 3rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero">
+    <div class="container text-center">
+        <h1 class="display-4 fw-bold mb-4">Discover Amazing Products</h1>
+        <p class="lead mb-4">Quality products at great prices</p>
+        <a href="{% url 'apps.marketplace:product_list' %}" class="btn btn-light btn-lg">Browse All Products</a>
+    </div>
+</section>
+
+<!-- Products Section -->
+<section class="container">
+    <div class="row">
+        {% for product in products %}
+        <div class="col-6 col-md-3">
+            <div class="card product-card h-100">
+                {% if product.images.exists %}
+                <img src="{{ product.images.first.medium.url }}" class="card-img-top" alt="{{ product.name }}">
+                {% endif %}
+                <div class="card-body">
+                    <h5 class="card-title">{{ product.name }}</h5>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="h5 mb-0">KES {{ product.effective_price }}</span>
+                        {% if product.discount_percentage > 0 %}
+                        <span class="badge bg-danger">-{{ product.discount_percentage }}%</span>
+                        {% endif %}
+                    </div>
+                    <a href="{% url 'apps.core:product_detail' product.slug %}" class="btn btn-primary mt-3 w-100">View Details</a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Add any custom JavaScript here
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize any needed plugins or functionality
+    });
+</script>
+{% endblock %}

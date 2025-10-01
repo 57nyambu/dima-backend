@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Dima Marketplace{% endblock %}</title>
+    <style type="text/css">
+        /* Base styles */
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333333;
+            background-color: #f7f7f7;
+            margin: 0;
+            padding: 0;
+        }
+        
+        /* Email container */
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+        
+        /* Header */
+        .email-header {
+            background: #4a6fdc;  /* Primary blue */
+            padding: 30px 20px;
+            text-align: center;
+        }
+        
+        .logo {
+            color: #ffffff;
+            font-size: 28px;
+            font-weight: bold;
+            text-decoration: none;
+        }
+        
+        /* Content */
+        .email-content {
+            padding: 30px;
+        }
+        
+        h1, h2, h3 {
+            color: #2c3e50;
+            margin-top: 0;
+        }
+        
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        
+        h2 {
+            font-size: 20px;
+            margin-bottom: 15px;
+        }
+        
+        p {
+            margin-bottom: 15px;
+        }
+        
+        /* Buttons */
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #4a6fdc;
+            color: #ffffff !important;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+        
+        .btn-secondary {
+            background-color: #2c3e50;
+        }
+        
+        /* Footer */
+        .email-footer {
+            background: #f1f5f9;
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #64748b;
+        }
+        
+        .social-links {
+            margin: 15px 0;
+        }
+        
+        .social-links a {
+            margin: 0 10px;
+            text-decoration: none;
+        }
+        
+        /* Responsive */
+        @media screen and (max-width: 600px) {
+            .email-container {
+                width: 100%;
+                border-radius: 0;
+            }
+            
+            .email-content {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <!-- Header with logo -->
+        <div class="email-header">
+            <a href="{{ site_url }}" class="logo">DIMA</a>
+        </div>
+        
+        <!-- Main content block -->
+        <div class="email-content">
+            {% block content %}
+            <!-- Content will be inserted here by child templates -->
+            {% endblock %}
+        </div>
+        
+        <!-- Footer -->
+        <div class="email-footer">
+            <div class="social-links">
+                <a href="{{ site_url }}/facebook" style="color: #4a6fdc;">Facebook</a>
+                <a href="{{ site_url }}/twitter" style="color: #4a6fdc;">Twitter</a>
+                <a href="{{ site_url }}/instagram" style="color: #4a6fdc;">Instagram</a>
+            </div>
+            <p>© {% now "Y" %} Dima Marketplace. All rights reserved.</p>
+            <p>
+                <a href="{{ site_url }}/privacy" style="color: #4a6fdc; text-decoration: none;">Privacy Policy</a> | 
+                <a href="{{ site_url }}/terms" style="color: #4a6fdc; text-decoration: none;">Terms of Service</a>
+            </p>
+            <p>
+                <a href="{{ site_url }}/unsubscribe" style="color: #64748b; text-decoration: none;">Unsubscribe</a> | 
+                <a href="{{ site_url }}/contact" style="color: #64748b; text-decoration: none;">Contact Support</a>
+            </p>
+            <p>Dima Marketplace, 123 Business Ave, Nairobi, Kenya</p>
+        </div>
+    </div>
+</body>
+</html>

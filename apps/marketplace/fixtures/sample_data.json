@@ -1,0 +1,29 @@
+[
+  {
+    "model": "marketplace.marketplacesettings",
+    "pk": 1,
+    "fields": {
+      "site_name": "Multi-Vendor Marketplace",
+      "commission_rate": "10.00",
+      "currency": "KES",
+      "tax_rate": "16.00",
+      "min_order_amount": "100.00",
+      "enable_reviews": true,
+      "enable_wishlist": true,
+      "enable_comparison": true
+    }
+  },
+  {
+    "model": "marketplace.banner",
+    "pk": 1,
+    "fields": {
+      "title": "Welcome to Our Marketplace",
+      "subtitle": "Discover amazing products from verified vendors",
+      "banner_type": "hero",
+      "position": 1,
+      "is_active": true,
+      "start_date": "2024-01-01T00:00:00Z",
+      "end_date": "2024-12-31T23:59:59Z"
+    }
+  }
+]

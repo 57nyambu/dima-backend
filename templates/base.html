@@ -1,147 +1,927 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Dima Marketplace{% endblock %}</title>
-    <style type="text/css">
-        /* Base styles */
-        body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-            line-height: 1.6;
-            color: #333333;
-            background-color: #f7f7f7;
-            margin: 0;
-            padding: 0;
-        }
-        
-        /* Email container */
-        .email-container {
-            max-width: 600px;
-            margin: 0 auto;
-            background: #ffffff;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-        }
-        
-        /* Header */
-        .email-header {
-            background: #4a6fdc;  /* Primary blue */
-            padding: 30px 20px;
-            text-align: center;
-        }
-        
-        .logo {
-            color: #ffffff;
-            font-size: 28px;
-            font-weight: bold;
-            text-decoration: none;
-        }
-        
-        /* Content */
-        .email-content {
-            padding: 30px;
-        }
-        
-        h1, h2, h3 {
-            color: #2c3e50;
-            margin-top: 0;
-        }
-        
-        h1 {
-            font-size: 24px;
-            margin-bottom: 20px;
-        }
-        
-        h2 {
-            font-size: 20px;
-            margin-bottom: 15px;
-        }
-        
-        p {
-            margin-bottom: 15px;
-        }
-        
-        /* Buttons */
-        .btn {
-            display: inline-block;
-            padding: 12px 24px;
-            background-color: #4a6fdc;
-            color: #ffffff !important;
-            text-decoration: none;
-            border-radius: 4px;
-            font-weight: bold;
-            margin: 15px 0;
-        }
-        
-        .btn-secondary {
-            background-color: #2c3e50;
-        }
-        
-        /* Footer */
-        .email-footer {
-            background: #f1f5f9;
-            padding: 20px;
-            text-align: center;
-            font-size: 12px;
-            color: #64748b;
-        }
-        
-        .social-links {
-            margin: 15px 0;
-        }
-        
-        .social-links a {
-            margin: 0 10px;
-            text-decoration: none;
-        }
-        
-        /* Responsive */
-        @media screen and (max-width: 600px) {
-            .email-container {
-                width: 100%;
-                border-radius: 0;
+    <title>{% block title %}Dima - Your Premium Shopping Destination{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    
+    <!-- TailwindCSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Alpine.js for interactive components -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- Feather Icons -->
+    <script src="https://unpkg.com/feather-icons"></script>
+    
+    <!-- Custom Configuration -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            DEFAULT: '#174069',
+                            dark: '#174069',
+                            light: '#2563eb'
+                        },
+                        accent: '#ffe96a',
+                        gold: '#ecca05ff'
+                    }
+                }
             }
-            
-            .email-content {
-                padding: 20px;
-            }
+        }
+    </script>
+    
+    <style>
+        .gold-glow {
+            box-shadow: 0 0 20px rgba(255, 233, 106, 0.3);
+        }
+        .primary-gradient {
+            background: linear-gradient(135deg, #174069 0%, #2563eb 100%);
+        }
+        .slide-in {
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+        .fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
     </style>
 </head>
-<body>
-    <div class="email-container">
-        <!-- Header with logo -->
-        <div class="email-header">
-            <a href="{{ site_url }}" class="logo">DIMA</a>
-        </div>
-        
-        <!-- Main content block -->
-        <div class="email-content">
-            {% block content %}
-            <!-- Content will be inserted here by child templates -->
-            {% endblock %}
-        </div>
-        
-        <!-- Footer -->
-        <div class="email-footer">
-            <div class="social-links">
-                <a href="{{ site_url }}/facebook" style="color: #4a6fdc;">Facebook</a>
-                <a href="{{ site_url }}/twitter" style="color: #4a6fdc;">Twitter</a>
-                <a href="{{ site_url }}/instagram" style="color: #4a6fdc;">Instagram</a>
+<body class="bg-gray-50" x-data="marketplace()">
+    
+    <!-- Navbar -->
+    <nav class="bg-white shadow-md sticky top-0 z-40">
+        <div class="container mx-auto px-4">
+            <div class="flex items-center justify-between h-16">
+                <!-- Logo -->
+                <div class="flex items-center">
+                    <a href="/" class="text-2xl font-bold text-primary-dark">
+                        DIMA
+                    </a>
+                </div>
+                
+                <!-- Desktop Navigation -->
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="/" class="text-gray-700 hover:text-primary transition">Home</a>
+                    
+                    <!-- Categories Dropdown -->
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open" class="text-gray-700 hover:text-primary transition flex items-center">
+                            Categories
+                            <i data-feather="chevron-down" class="w-4 h-4 ml-1"></i>
+                        </button>
+                        <div x-show="open" @click.away="open = false" class="absolute z-50 mt-2 w-48 bg-white rounded-md shadow-lg py-1">
+                            <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Electronics</a>
+                            <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Fashion</a>
+                            <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Home & Garden</a>
+                            <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Sports</a>
+                        </div>
+                    </div>
+                    
+                    <!-- Price Range Dropdown -->
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open" class="text-gray-700 hover:text-primary transition flex items-center">
+                            Price Range
+                            <i data-feather="chevron-down" class="w-4 h-4 ml-1"></i>
+                        </button>
+                        <div x-show="open" @click.away="open = false" class="absolute z-50 mt-2 w-48 bg-white rounded-md shadow-lg py-1">
+                            <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Under Ksh 1,000</a>
+                            <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Ksh 1,000 - 5,000</a>
+                            <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Ksh 5,000 - 10,000</a>
+                            <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Over Ksh 10,000</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Right Icons -->
+                <div class="flex items-center space-x-4">
+                    <!-- Profile Dropdown -->
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open" class="text-gray-700 hover:text-primary transition">
+                            <i data-feather="user" class="w-6 h-6"></i>
+                        </button>
+                        <div x-show="open" @click.away="open = false" class="absolute right-0 z-50 mt-2 w-48 bg-white rounded-md shadow-lg py-1">
+                            {% if user.is_authenticated %}
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">My Profile</a>
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Orders</a>
+                                <a href="/" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Logout</a>
+                            {% else %}
+                                <a href="/" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                                    <i data-feather="log-in" class="w-4 h-4 mr-2"></i> Login
+                                </a>
+                                <a href="/" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                                    <i data-feather="user-plus" class="w-4 h-4 mr-2"></i> Sign Up
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Cart -->
+                    <button @click="cartOpen = true" class="relative text-gray-700 hover:text-primary transition">
+                        <i data-feather="shopping-cart" class="w-6 h-6"></i>
+                        <span x-show="cart.items.length > 0" 
+                              x-text="cart.items.length"
+                              class="absolute -top-2 -right-2 bg-accent text-primary-dark text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                        </span>
+                    </button>
+                    
+                    <!-- Mobile Menu Toggle -->
+                    <button @click="mobileMenuOpen = !mobileMenuOpen" class="md:hidden text-gray-700">
+                        <i data-feather="menu" class="w-6 h-6"></i>
+                    </button>
+                </div>
             </div>
-            <p>© {% now "Y" %} Dima Marketplace. All rights reserved.</p>
-            <p>
-                <a href="{{ site_url }}/privacy" style="color: #4a6fdc; text-decoration: none;">Privacy Policy</a> | 
-                <a href="{{ site_url }}/terms" style="color: #4a6fdc; text-decoration: none;">Terms of Service</a>
-            </p>
-            <p>
-                <a href="{{ site_url }}/unsubscribe" style="color: #64748b; text-decoration: none;">Unsubscribe</a> | 
-                <a href="{{ site_url }}/contact" style="color: #64748b; text-decoration: none;">Contact Support</a>
-            </p>
-            <p>Dima Marketplace, 123 Business Ave, Nairobi, Kenya</p>
+        </div>
+    </nav>
+    
+    <!-- Mobile Menu Overlay -->
+    <div x-show="mobileMenuOpen" 
+         x-transition:enter="fade-in"
+         x-transition:leave="fade-out"
+         @click="mobileMenuOpen = false"
+         class="fixed inset-0 bg-black bg-opacity-50 z-50 md:hidden">
+        <div @click.stop 
+             x-show="mobileMenuOpen"
+             x-transition:enter="slide-in"
+             class="fixed right-0 top-0 h-full w-64 bg-white shadow-xl">
+            <div class="p-4">
+                <button @click="mobileMenuOpen = false" class="mb-4">
+                    <i data-feather="x" class="w-6 h-6"></i>
+                </button>
+                <nav class="space-y-4">
+                    <a href="/" class="block py-2 text-gray-700 hover:text-primary">Home</a>
+                    <button @click="toggleCategories()" class="w-full text-left py-2 text-gray-700 hover:text-primary">
+                        Categories
+                    </button>
+                </nav>
+            </div>
         </div>
     </div>
+    
+    <!-- Search & Filter Header -->
+    <!-- Search & Filter Header -->
+    <header class="primary-gradient py-8">
+        <div class="container mx-auto px-4">
+            <!-- Search Bar -->
+            <div class="max-w-3xl mx-auto relative mb-6">
+                <div class="flex items-center bg-white rounded-full shadow-lg overflow-hidden gold-glow">
+                    <div class="relative flex-grow">
+                        <input type="text" 
+                            x-model="searchQuery"
+                            @input="handleSearch()"
+                            @focus="searchFocused = true"
+                            @blur="setTimeout(() => searchFocused = false, 200)"
+                            placeholder="Search products, brands, categories..."
+                            class="w-full px-6 py-4 text-gray-800 focus:outline-none">
+                        <button x-show="searchQuery" 
+                                @click="searchQuery = ''; handleSearch()"
+                                class="absolute right-16 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-primary-dark">
+                            <i data-feather="x" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                    <button @click="performSearch()" 
+                            class="bg-accent hover:bg-gold text-primary-dark px-6 py-4 transition flex items-center">
+                        <i data-feather="search" class="w-5 h-5 mr-2"></i>
+                        Search
+                    </button>
+                </div>
+                
+                <!-- Search Suggestions Dropdown -->
+                <div x-show="searchFocused && searchSuggestions.length > 0"
+                    x-transition
+                    class="absolute top-full mt-2 w-full bg-white rounded-lg shadow-xl z-30 overflow-hidden">
+                    <div class="max-h-80 overflow-y-auto">
+                        <template x-for="suggestion in searchSuggestions" :key="suggestion.id">
+                            <div @click="selectSuggestion(suggestion)" 
+                                class="px-4 py-3 hover:bg-gray-100 cursor-pointer flex items-center space-x-3 border-b border-gray-100">
+                                <img :src="suggestion.image || '/static/placeholder.jpg'" 
+                                    class="w-10 h-10 object-cover rounded" 
+                                    alt="">
+                                <div class="flex-grow">
+                                    <p class="font-medium text-gray-800" x-text="suggestion.name"></p>
+                                    <p class="text-sm text-gray-500" x-text="'Ksh ' + suggestion.price.toLocaleString()"></p>
+                                </div>
+                                <div x-show="suggestion.rating" class="flex items-center text-sm text-yellow-500">
+                                    <i data-feather="star" class="w-4 h-4 fill-current"></i>
+                                    <span x-text="suggestion.rating" class="ml-1"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    <div class="px-4 py-2 bg-gray-50 text-sm text-gray-500 flex justify-between items-center">
+                        <span x-text="searchSuggestions.length + ' results found'"></span>
+                        <a href="#" class="text-primary-dark hover:underline">Advanced Search</a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Advanced Filters - Collapsible for Mobile -->
+            <div class="max-w-3xl mx-auto" x-data="{ filtersOpen: window.innerWidth >= 768 }">
+                <!-- Filter Toggle Button - Mobile Only -->
+                <button @click="filtersOpen = !filtersOpen" 
+                        class="md:hidden w-full bg-white/20 backdrop-blur-sm text-white px-4 py-3 rounded-xl mb-3 flex items-center justify-between shadow-sm">
+                    <span class="font-semibold flex items-center">
+                        <i data-feather="filter" class="w-5 h-5 mr-2"></i>
+                        Filter Products
+                    </span>
+                    <span x-text="filtersOpen ? 'Hide Filters' : 'Show Filters'" class="text-sm"></span>
+                </button>
+                
+                <!-- Filters Container -->
+                <div x-show="filtersOpen" x-transition
+                    class="bg-white/10 backdrop-blur-sm rounded-2xl p-4 md:p-5">
+                    <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+                        <h3 class="text-white font-semibold flex items-center">
+                            <i data-feather="filter" class="w-5 h-5 mr-2 hidden md:block"></i>
+                            <span class="hidden md:block">Filter Products</span>
+                        </h3>
+                        
+                        <div class="flex items-center space-x-2">
+                            <button @click="clearAllFilters()" 
+                                    class="text-white/80 hover:text-accent text-sm flex items-center transition-colors">
+                                <i data-feather="trash-2" class="w-4 h-4 mr-1"></i>
+                                Clear all
+                            </button>
+                            <button @click="applyFilters()" 
+                                    class="bg-primary-light hover:bg-primary-dark text-white px-4 py-2 rounded-full text-sm transition flex items-center shadow-md">
+                                <i data-feather="check" class="w-4 h-4 mr-1"></i>
+                                Apply Filters
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Filter Chips -->
+                    <div class="flex flex-wrap gap-3">
+                        <!-- Price Range Filter -->
+                        <div class="relative" x-data="{ open: false }">
+                            <button @click="open = !open" 
+                                    :class="filters.price ? 'bg-accent text-primary-dark font-medium' : 'bg-white/20 text-white hover:bg-white/30'"
+                                    class="px-4 py-2.5 rounded-full transition-all flex items-center shadow-sm">
+                                <span x-text="filters.price ? 'Price: ' + getPriceLabel(filters.price) : 'Price Range'"></span>
+                                <i data-feather="chevron-down" class="w-4 h-4 ml-1.5"></i>
+                            </button>
+                            <div x-show="open" 
+                                x-transition
+                                @click.away="open = false" 
+                                class="absolute z-10 mt-2 w-64 bg-white rounded-lg shadow-lg p-4 border border-gray-200">
+                                <h4 class="font-medium text-gray-800 mb-3 text-sm uppercase tracking-wide">Price Range (Ksh)</h4>
+                                <div class="space-y-2.5">
+                                    <label class="flex items-center py-1.5">
+                                        <input type="radio" name="price" value="" class="mr-3 h-4 w-4 text-primary-dark" 
+                                            :checked="!filters.price" @change="filters.price = ''"> 
+                                        <span class="text-gray-700">Any price</span>
+                                    </label>
+                                    <label class="flex items-center py-1.5">
+                                        <input type="radio" name="price" value="0-1000" class="mr-3 h-4 w-4 text-primary-dark" 
+                                            :checked="filters.price === '0-1000'" @change="filters.price = '0-1000'"> 
+                                        <span class="text-gray-700">Under 1,000</span>
+                                    </label>
+                                    <label class="flex items-center py-1.5">
+                                        <input type="radio" name="price" value="1000-5000" class="mr-3 h-4 w-4 text-primary-dark" 
+                                            :checked="filters.price === '1000-5000'" @change="filters.price = '1000-5000'"> 
+                                        <span class="text-gray-700">1,000 - 5,000</span>
+                                    </label>
+                                    <label class="flex items-center py-1.5">
+                                        <input type="radio" name="price" value="5000-10000" class="mr-3 h-4 w-4 text-primary-dark" 
+                                            :checked="filters.price === '5000-10000'" @change="filters.price = '5000-10000'"> 
+                                        <span class="text-gray-700">5,000 - 10,000</span>
+                                    </label>
+                                    <label class="flex items-center py-1.5">
+                                        <input type="radio" name="price" value="10000+" class="mr-3 h-4 w-4 text-primary-dark" 
+                                            :checked="filters.price === '10000+'" @change="filters.price = '10000+'"> 
+                                        <span class="text-gray-700">Over 10,000</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Category Filter -->
+                        <div class="relative" x-data="{ open: false }">
+                            <button @click="open = !open" 
+                                    :class="filters.category ? 'bg-accent text-primary-dark font-medium' : 'bg-white/20 text-white hover:bg-white/30'"
+                                    class="px-4 py-2.5 rounded-full transition-all flex items-center shadow-sm">
+                                <span x-text="filters.category ? getCategoryLabel(filters.category) : 'Category'"></span>
+                                <i data-feather="chevron-down" class="w-4 h-4 ml-1.5"></i>
+                            </button>
+                            <div x-show="open" 
+                                x-transition
+                                @click.away="open = false" 
+                                class="absolute z-10 mt-2 w-64 bg-white rounded-lg shadow-lg p-4 border border-gray-200">
+                                <h4 class="font-medium text-gray-800 mb-3 text-sm uppercase tracking-wide">Categories</h4>
+                                <div class="space-y-2.5 max-h-60 overflow-y-auto">
+                                    <label class="flex items-center py-1.5">
+                                        <input type="radio" name="category" value="" class="mr-3 h-4 w-4 text-primary-dark" 
+                                            :checked="!filters.category" @change="filters.category = ''"> 
+                                        <span class="text-gray-700">All categories</span>
+                                    </label>
+                                    <label class="flex items-center py-1.5">
+                                        <input type="radio" name="category" value="electronics" class="mr-3 h-4 w-4 text-primary-dark" 
+                                            :checked="filters.category === 'electronics'" @change="filters.category = 'electronics'"> 
+                                        <span class="text-gray-700">Electronics</span>
+                                    </label>
+                                    <label class="flex items-center py-1.5">
+                                        <input type="radio" name="category" value="fashion" class="mr-3 h-4 w-4 text-primary-dark" 
+                                            :checked="filters.category === 'fashion'" @change="filters.category = 'fashion'"> 
+                                        <span class="text-gray-700">Fashion</span>
+                                    </label>
+                                    <label class="flex items-center py-1.5">
+                                        <input type="radio" name="category" value="home" class="mr-3 h-4 w-4 text-primary-dark" 
+                                            :checked="filters.category === 'home'" @change="filters.category = 'home'"> 
+                                        <span class="text-gray-700">Home & Garden</span>
+                                    </label>
+                                    <label class="flex items-center py-1.5">
+                                        <input type="radio" name="category" value="sports" class="mr-3 h-4 w-4 text-primary-dark" 
+                                            :checked="filters.category === 'sports'" @change="filters.category = 'sports'"> 
+                                        <span class="text-gray-700">Sports</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Rating Filter -->
+                        <div class="relative" x-data="{ open: false }">
+                            <button @click="open = !open" 
+                                    :class="filters.rating ? 'bg-accent text-primary-dark font-medium' : 'bg-white/20 text-white hover:bg-white/30'"
+                                    class="px-4 py-2.5 rounded-full transition-all flex items-center shadow-sm">
+                                <i data-feather="star" class="w-4 h-4 mr-1.5" :class="filters.rating ? 'text-primary-dark' : ''"></i>
+                                <span x-text="filters.rating ? filters.rating + '+ Stars' : 'Rating'"></span>
+                                <i data-feather="chevron-down" class="w-4 h-4 ml-1.5"></i>
+                            </button>
+                            <div x-show="open" 
+                                x-transition
+                                @click.away="open = false" 
+                                class="absolute z-10 mt-2 w-56 bg-white rounded-lg shadow-lg p-4 border border-gray-200">
+                                <h4 class="font-medium text-gray-800 mb-3 text-sm uppercase tracking-wide">Minimum Rating</h4>
+                                <div class="space-y-2.5">
+                                    <label class="flex items-center py-1.5">
+                                        <input type="radio" name="rating" value="" class="mr-3 h-4 w-4 text-primary-dark" 
+                                            :checked="!filters.rating" @change="filters.rating = ''"> 
+                                        <span class="text-gray-700">Any rating</span>
+                                    </label>
+                                    <label class="flex items-center py-1.5">
+                                        <input type="radio" name="rating" value="4" class="mr-3 h-4 w-4 text-primary-dark" 
+                                            :checked="filters.rating === '4'" @change="filters.rating = '4'"> 
+                                        <span class="text-gray-700">4+ Stars</span>
+                                    </label>
+                                    <label class="flex items-center py-1.5">
+                                        <input type="radio" name="rating" value="3" class="mr-3 h-4 w-4 text-primary-dark" 
+                                            :checked="filters.rating === '3'" @change="filters.rating = '3'"> 
+                                        <span class="text-gray-700">3+ Stars</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Shipping Filter -->
+                        <button @click="toggleFilter('shipping')" 
+                                :class="filters.shipping ? 'bg-accent text-primary-dark font-medium' : 'bg-white/20 text-white hover:bg-white/30'"
+                                class="px-4 py-2.5 rounded-full transition-all flex items-center shadow-sm">
+                            <i data-feather="truck" class="w-4 h-4 mr-1.5" :class="filters.shipping ? 'text-primary-dark' : ''"></i>
+                            Free Shipping
+                        </button>
+                        
+                        <!-- Sort Options -->
+                        <div class="relative" x-data="{ open: false, selected: 'popularity' }">
+                            <button @click="open = !open" 
+                                    class="bg-white/20 text-white px-4 py-2.5 rounded-full transition-all hover:bg-white/30 flex items-center shadow-sm">
+                                <i data-feather="arrow-up-down" class="w-4 h-4 mr-1.5"></i>
+                                <span x-text="getSortLabel(selected)"></span>
+                                <i data-feather="chevron-down" class="w-4 h-4 ml-1.5"></i>
+                            </button>
+                            <div x-show="open" 
+                                x-transition
+                                @click.away="open = false" 
+                                class="absolute z-10 mt-2 right-0 w-48 bg-white rounded-lg shadow-lg p-2 border border-gray-200">
+                                <button @click="selected = 'popularity'; sortBy('popularity'); open = false" 
+                                        :class="{'bg-gray-100': selected === 'popularity'}"
+                                        class="w-full text-left px-4 py-2.5 hover:bg-gray-100 rounded-md text-sm flex items-center">
+                                    <i data-feather="trending-up" class="w-4 h-4 mr-2" :class="{'text-primary-dark': selected === 'popularity'}"></i>
+                                    Popularity
+                                </button>
+                                <button @click="selected = 'price_asc'; sortBy('price_asc'); open = false" 
+                                        :class="{'bg-gray-100': selected === 'price_asc'}"
+                                        class="w-full text-left px-4 py-2.5 hover:bg-gray-100 rounded-md text-sm flex items-center">
+                                    <i data-feather="arrow-up" class="w-4 h-4 mr-2" :class="{'text-primary-dark': selected === 'price_asc'}"></i>
+                                    Price: Low to High
+                                </button>
+                                <button @click="selected = 'price_desc'; sortBy('price_desc'); open = false" 
+                                        :class="{'bg-gray-100': selected === 'price_desc'}"
+                                        class="w-full text-left px-4 py-2.5 hover:bg-gray-100 rounded-md text-sm flex items-center">
+                                    <i data-feather="arrow-down" class="w-4 h-4 mr-2" :class="{'text-primary-dark': selected === 'price_desc'}"></i>
+                                    Price: High to Low
+                                </button>
+                                <button @click="selected = 'newest'; sortBy('newest'); open = false" 
+                                        :class="{'bg-gray-100': selected === 'newest'}"
+                                        class="w-full text-left px-4 py-2.5 hover:bg-gray-100 rounded-md text-sm flex items-center">
+                                    <i data-feather="calendar" class="w-4 h-4 mr-2" :class="{'text-primary-dark': selected === 'newest'}"></i>
+                                    Newest First
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <script>
+        // Add these helper functions to your Alpine.js component
+        function getPriceLabel(value) {
+            const labels = {
+                '0-1000': 'Under 1,000',
+                '1000-5000': '1,000-5,000',
+                '5000-10000': '5,000-10,000',
+                '10000+': 'Over 10,000'
+            };
+            return labels[value] || value;
+        }
+        
+        function getCategoryLabel(value) {
+            const labels = {
+                'electronics': 'Electronics',
+                'fashion': 'Fashion',
+                'home': 'Home & Garden',
+                'sports': 'Sports'
+            };
+            return labels[value] || value;
+        }
+        
+        function getSortLabel(value) {
+            const labels = {
+                'popularity': 'Popularity',
+                'price_asc': 'Price: Low to High',
+                'price_desc': 'Price: High to Low',
+                'newest': 'Newest First'
+            };
+            return labels[value] || 'Sort By';
+        }
+        
+        function clearAllFilters() {
+            return {
+                filters: {
+                    price: '',
+                    category: '',
+                    rating: '',
+                    shipping: false
+                }
+            };
+        }
+    </script>
+
+        <script>
+            // Add these helper functions to your Alpine.js component
+            function getPriceLabel(value) {
+                const labels = {
+                    '0-1000': 'Under 1,000',
+                    '1000-5000': '1,000-5,000',
+                    '5000-10000': '5,000-10,000',
+                    '10000+': 'Over 10,000'
+                };
+                return labels[value] || value;
+            }
+            
+            function getCategoryLabel(value) {
+                const labels = {
+                    'electronics': 'Electronics',
+                    'fashion': 'Fashion',
+                    'home': 'Home & Garden',
+                    'sports': 'Sports'
+                };
+                return labels[value] || value;
+            }
+            
+            function getSortLabel(value) {
+                const labels = {
+                    'popularity': 'Popularity',
+                    'price_asc': 'Price: Low to High',
+                    'price_desc': 'Price: High to Low',
+                    'newest': 'Newest First'
+                };
+                return labels[value] || 'Sort By';
+            }
+            
+            function clearAllFilters() {
+                return {
+                    filters: {
+                        price: '',
+                        category: '',
+                        rating: '',
+                        shipping: false
+                    }
+                };
+            }
+        </script>
+    
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8 min-h-screen">
+        {% block content %}
+
+        {% endblock %}
+    </main>
+    
+    <!-- Cart Popup Drawer -->
+    <div x-show="cartOpen" 
+         @click="cartOpen = false"
+         x-transition:enter="fade-in"
+         class="fixed inset-0 bg-black bg-opacity-50 z-50">
+        <div @click.stop 
+             x-show="cartOpen"
+             x-transition:enter="slide-in"
+             class="fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-xl overflow-y-auto">
+            <!-- Cart Header -->
+            <div class="p-4 border-b sticky top-0 bg-white z-10">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-xl font-bold text-gray-800">Shopping Cart</h2>
+                    <button @click="cartOpen = false" class="text-gray-700 hover:text-gray-900 p-2 ml-4 rounded-full hover:bg-gray-100" aria-label="Close cart">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Cart Items -->
+            <div class="p-4">
+                <template x-if="cart.items.length === 0">
+                    <div class="text-center py-12">
+                        <i data-feather="shopping-bag" class="w-16 h-16 mx-auto text-gray-300 mb-4"></i>
+                        <p class="text-gray-500">Your cart is empty</p>
+                        <button @click="cartOpen = false" class="mt-4 bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary-light transition">
+                            Continue Shopping
+                        </button>
+                    </div>
+                </template>
+                
+                <template x-if="cart.items.length > 0">
+                    <div class="space-y-4">
+                        <template x-for="item in cart.items" :key="item.id">
+                            <div class="flex items-center space-x-4 bg-gray-50 p-3 rounded-lg">
+                                <img :src="item.image || '/static/placeholder.jpg'" 
+                                     class="w-20 h-20 object-cover rounded" 
+                                     alt="">
+                                <div class="flex-1">
+                                    <h3 class="font-medium text-gray-800" x-text="item.name"></h3>
+                                    <p class="text-sm text-gray-500" x-text="'Qty: ' + item.quantity"></p>
+                                    <p class="font-bold text-primary" x-text="'$' + (item.price * item.quantity).toFixed(2)"></p>
+                                </div>
+                                <button @click="removeFromCart(item.id)" class="text-red-500 hover:text-red-700">
+                                    <i data-feather="trash-2" class="w-5 h-5"></i>
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+            
+            <!-- Cart Footer -->
+            <template x-if="cart.items.length > 0">
+                <div class="border-t p-4 sticky bottom-0 bg-white">
+                    <div class="flex justify-between mb-4">
+                        <span class="text-lg font-medium">Subtotal:</span>
+                        <span class="text-xl font-bold text-primary" x-text="'$' + cartTotal.toFixed(2)"></span>
+                    </div>
+                    <button class="w-full bg-accent hover:bg-gold text-primary-dark font-bold py-3 rounded-lg transition gold-glow">
+                        Proceed to Checkout
+                    </button>
+                </div>
+            </template>
+        </div>
+    </div>
+    
+    <!-- Footer -->
+    <!-- Footer -->
+    <footer class="bg-primary text-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                <!-- About Section -->
+                <div>
+                    <h3 class="text-lg font-semibold mb-4 text-accent">About Dima Marketplace</h3>
+                    <p class="text-blue-100 mb-4">Your trusted digital marketplace for quality products and services. Connect with sellers and buyers worldwide.</p>
+                    <div class="flex items-center">
+                        <div class="bg-accent p-2 rounded-lg mr-3">
+                            <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                            </svg>
+                        </div>
+                        <span class="font-semibold">Dima Marketplace</span>
+                    </div>
+                </div>
+
+                <!-- Quick Links -->
+                <div>
+                    <h3 class="text-lg font-semibold mb-4 text-accent">Quick Links</h3>
+                    <ul class="space-y-2">
+                        <li><a href="/categories/" class="text-blue-100 hover:text-accent transition-colors">Categories</a></li>
+                        <li><a href="/services/" class="text-blue-100 hover:text-accent transition-colors">Services</a></li>
+                        <li><a href="/sellers/" class="text-blue-100 hover:text-accent transition-colors">Become a Seller</a></li>
+                        <li><a href="/deals/" class="text-blue-100 hover:text-accent transition-colors">Special Deals</a></li>
+                        <li><a href="/blog/" class="text-blue-100 hover:text-accent transition-colors">Blog</a></li>
+                    </ul>
+                </div>
+
+                <!-- Customer Service -->
+                <div>
+                    <h3 class="text-lg font-semibold mb-4 text-accent">Customer Service</h3>
+                    <ul class="space-y-2">
+                        <li><a href="/help/" class="text-blue-100 hover:text-accent transition-colors">Help Center</a></li>
+                        <li><a href="/contact/" class="text-blue-100 hover:text-accent transition-colors">Contact Us</a></li>
+                        <li><a href="/shipping/" class="text-blue-100 hover:text-accent transition-colors">Shipping Info</a></li>
+                        <li><a href="/returns/" class="text-blue-100 hover:text-accent transition-colors">Returns & Refunds</a></li>
+                        <li><a href="/privacy/" class="text-blue-100 hover:text-accent transition-colors">Privacy Policy</a></li>
+                    </ul>
+                </div>
+
+                <!-- Social Media -->
+                <div>
+                    <h3 class="text-lg font-semibold mb-4 text-accent">Follow Us</h3>
+                    <div class="flex space-x-4 mb-4">
+                        <a href="#" class="w-10 h-10 bg-blue-600 hover:bg-accent text-white hover:text-primary rounded-lg flex items-center justify-center transition-all hover:gold-glow">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/>
+                            </svg>
+                        </a>
+                        <a href="#" class="w-10 h-10 bg-blue-600 hover:bg-accent text-white hover:text-primary rounded-lg flex items-center justify-center transition-all hover:gold-glow">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M22.46 6c-.77.35-1.6.58-2.46.69.88-.53 1.56-1.37 1.88-2.38-.83.5-1.75.85-2.72 1.05C18.37 4.5 17.26 4 16 4c-2.35 0-4.27 1.92-4.27 4.29 0 .34.04.67.11.98C8.28 9.09 5.11 7.38 3 4.79c-.37.63-.58 1.37-.58 2.15 0 1.49.75 2.81 1.91 3.56-.71 0-1.37-.2-1.95-.5v.03c0 2.08 1.48 3.82 3.44 4.21a4.22 4.22 0 0 1-1.93.07 4.28 4.28 0 0 0 4 2.98 8.521 8.521 0 0 1-5.33 1.84c-.34 0-.68-.02-1.02-.06C3.44 20.29 5.7 21 8.12 21 16 21 20.33 14.46 20.33 8.79c0-.19 0-.37-.01-.56.84-.6 1.56-1.36 2.14-2.23z"/>
+                            </svg>
+                        </a>
+                        <a href="#" class="w-10 h-10 bg-blue-600 hover:bg-accent text-white hover:text-primary rounded-lg flex items-center justify-center transition-all hover:gold-glow">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12.017 0C5.396 0 .029 5.367.029 11.987c0 5.079 3.158 9.417 7.618 11.174-.105-.949-.199-2.403.041-3.439.219-.937 1.406-5.957 1.406-5.957s-.359-.72-.359-1.781c0-1.663.967-2.911 2.168-2.911 1.024 0 1.518.769 1.518 1.688 0 1.029-.653 2.567-.992 3.992-.285 1.193.6 2.165 1.775 2.165 2.128 0 3.768-2.245 3.768-5.487 0-2.861-2.063-4.869-5.008-4.869-3.41 0-5.409 2.562-5.409 5.199 0 1.033.394 2.143.889 2.741.097.118.112.222.083.343-.09.375-.293 1.199-.334 1.363-.053.225-.172.271-.402.402-1.507-.7-2.448-2.78-2.448-4.958 0-3.778 2.745-7.252 7.92-7.252 4.158 0 7.392 2.967 7.392 6.923 0 4.135-2.607 7.462-6.233 7.462-1.214 0-2.357-.629-2.758-1.378l-.749 2.848c-.269 1.045-1.004 2.352-1.498 3.146 1.123.345 2.306.535 3.55.535 6.624 0 11.99-5.367 11.99-11.99C24.007 5.367 18.641.001.012.001z"/>
+                            </svg>
+                        </a>
+                        <a href="#" class="w-10 h-10 bg-red-600 hover:bg-accent text-white hover:text-primary rounded-lg flex items-center justify-center transition-all hover:gold-glow">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 0C5.374 0 0 5.373 0 12s5.374 12 12 12 12-5.373 12-12S18.626 0 12 0zm5.568 8.16c-.169 1.858-.896 3.433-1.682 4.886-.93 1.718-1.901 3.081-2.709 4.164-.807 1.082-1.453 1.726-1.453 1.726s-.646-.644-1.453-1.726c-.808-1.083-1.779-2.446-2.709-4.164-.786-1.453-1.513-3.028-1.682-4.886-.151-1.663.231-2.849.749-3.726.518-.876 1.14-1.327 1.873-1.615.733-.287 1.51-.322 2.272-.322.762 0 1.539.035 2.272.322.733.288 1.355.739 1.873 1.615.518.877.9 2.063.749 3.726z"/>
+                            </svg>
+                        </a>
+                    </div>
+                    <p class="text-sm text-blue-100">Stay updated with our latest offers and news!</p>
+                </div>
+            </div>
+            
+            <!-- Copyright -->
+            <div class="border-t border-blue-700 mt-8 pt-8 text-center">
+                <p class="text-blue-100">&copy; 2024 Dima Marketplace. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+    
+    <!-- JavaScript API Integration -->
+    <script>
+        // Cart debugging utility
+        const CartDebug = {
+            log: function(action, data) {
+                console.log('%c🛒 Cart:', 'background: #4CAF50; color: white; padding: 2px 5px; border-radius: 3px;', action, data);
+            },
+            error: function(action, error) {
+                console.error('%c🛒 Cart Error:', 'background: #f44336; color: white; padding: 2px 5px; border-radius: 3px;', action, error);
+            },
+            state: function() {
+                const cart = localStorage.getItem('dimaCart');
+                console.log('%c🛒 Cart State:', 'background: #2196F3; color: white; padding: 2px 5px; border-radius: 3px;', 
+                    cart ? JSON.parse(cart) : 'Empty');
+            }
+        };
+
+        function marketplace() {
+            return {
+                // State
+                mobileMenuOpen: false,
+                cartOpen: false,
+                searchQuery: '',
+                searchFocused: false,
+                searchSuggestions: [],
+                isAuthenticated: false,
+                filters: {
+                    price: false,
+                    category: false,
+                    rating: false,
+                    shipping: false
+                },
+                cart: {
+                    items: [],
+                    lastUpdated: null
+                },
+                
+                // Computed
+                get cartTotal() {
+                    return this.cart.items.reduce((total, item) => total + (item.price * item.quantity), 0);
+                },
+                
+                // Methods
+                init() {
+                    // Load cart from localStorage
+                    const savedCart = localStorage.getItem('dimaCart');
+                    if (savedCart) {
+                        this.cart = JSON.parse(savedCart);
+                    }
+                    
+                    // Initialize Feather icons
+                    feather.replace();
+                    
+                    // Watch for icon updates
+                    this.$watch('cartOpen', () => setTimeout(() => feather.replace(), 100));
+                    this.$watch('mobileMenuOpen', () => setTimeout(() => feather.replace(), 100));
+                    
+                    // Check authentication status
+                    this.checkAuth();
+                },
+                
+                async checkAuth() {
+                    try {
+                        const response = await fetch('/api/auth/check-token/', {
+                            headers: {
+                                'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                            }
+                        });
+                        this.isAuthenticated = response.ok;
+                        if (!response.ok) {
+                            localStorage.removeItem('access_token');
+                        }
+                        return response.ok;
+                    } catch (error) {
+                        console.error('Auth check error:', error);
+                        this.isAuthenticated = false;
+                        localStorage.removeItem('access_token');
+                        return false;
+                    }
+                },
+                
+                async logout() {
+                    try {
+                        await fetch('/api/auth/logout/', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                            }
+                        });
+                    } catch (error) {
+                        console.error('Logout error:', error);
+                    } finally {
+                        localStorage.removeItem('access_token');
+                        this.isAuthenticated = false;
+                        window.location.href = '/';
+                    }
+                },
+                
+                // API Methods
+                async handleSearch() {
+                    if (this.searchQuery.length < 2) {
+                        this.searchSuggestions = [];
+                        return;
+                    }
+                    
+                    try {
+                        // API placeholder - replace with actual endpoint
+                        const response = await fetch(`/api/search?q=${encodeURIComponent(this.searchQuery)}`);
+                        if (response.ok) {
+                            const data = await response.json();
+                            this.searchSuggestions = data.results || [];
+                        }
+                    } catch (error) {
+                        console.error('Search error:', error);
+                        // Fallback mock data for demo
+                        this.searchSuggestions = [
+                            { id: 1, name: 'Sample Product', price: 29.99, image: null },
+                            { id: 2, name: 'Another Item', price: 49.99, image: null }
+                        ];
+                    }
+                },
+                
+                performSearch() {
+                    if (this.searchQuery) {
+                        // Trigger search API
+                        window.location.href = `/search?q=${encodeURIComponent(this.searchQuery)}`;
+                    }
+                },
+                
+                selectSuggestion(suggestion) {
+                    window.location.href = `/product/${suggestion.id}`;
+                },
+                
+                toggleFilter(filterName) {
+                    this.filters[filterName] = !this.filters[filterName];
+                    this.applyFilters();
+                },
+                
+                async applyFilters() {
+                    const activeFilters = Object.entries(this.filters)
+                        .filter(([key, value]) => value)
+                        .map(([key]) => key);
+                    
+                    try {
+                        // API placeholder
+                        const response = await fetch('/api/filter', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ filters: activeFilters })
+                        });
+                        
+                        if (response.ok) {
+                            // Handle filter results
+                            const data = await response.json();
+                            console.log('Filtered products:', data);
+                        }
+                    } catch (error) {
+                        console.error('Filter error:', error);
+                    }
+                },
+                
+                toggleCategories() {
+                    // Implement category dropdown/modal
+                    console.log('Toggle categories');
+                },
+                
+                toggleProfile() {
+                    // Implement profile dropdown/modal
+                    console.log('Toggle profile');
+                },
+                
+                addToCart(product) {
+                    const existingItem = this.cart.items.find(item => item.id === product.id);
+                    if (existingItem) {
+                        existingItem.quantity++;
+                    } else {
+                        this.cart.items.push({ ...product, quantity: 1 });
+                    }
+                    this.saveCart();
+                },
+                
+                removeFromCart(productId) {
+                    this.cart.items = this.cart.items.filter(item => item.id !== productId);
+                    this.saveCart();
+                    feather.replace();
+                },
+                
+                saveCart() {
+                    localStorage.setItem('dimaCart', JSON.stringify(this.cart));
+                },
+                
+                // Auth Methods
+                async checkAuth() {
+                    try {
+                        const response = await fetch('/api/auth/check');
+                        if (response.ok) {
+                            const data = await response.json();
+                            return data.authenticated;
+                        }
+                    } catch (error) {
+                        console.error('Auth check error:', error);
+                    }
+                    return false;
+                },
+                
+                async login(credentials) {
+                    try {
+                        const response = await fetch('/api/auth/login/', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(credentials)
+                        });
+                        
+                        if (response.ok) {
+                            const data = await response.json();
+                            return data;
+                        }
+                    } catch (error) {
+                        console.error('Login error:', error);
+                    }
+                    return null;
+                }
+            }
+        }
+        
+        // Global API wrapper for external use
+        window.DimaAPI = {
+            search: async (query) => {
+                const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+                return response.json();
+            },
+            
+            getProduct: async (id) => {
+                const response = await fetch(`/api/product/${id}`);
+                return response.json();
+            },
+            
+            getCategories: async () => {
+                const response = await fetch('/api/categories');
+                return response.json();
+            }
+        };
+    </script>
 </body>
 </html>

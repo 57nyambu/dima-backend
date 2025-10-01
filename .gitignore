@@ -14,3 +14,4 @@ payload.txt
 doc.txt
 *.backup
 schema.yaml
+test*

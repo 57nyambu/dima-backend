@@ -12,6 +12,8 @@ class ShippingAddress(models.Model):
     def __str__(self):
         return f"{self.full_name}, {self.address}, {self.city}"
 
+class ShippingOption(models.Model):
+    pass
 class ShippingMethod(models.Model):
     name = models.CharField(max_length=50)
     price = models.DecimalField(max_digits=8, decimal_places=2)

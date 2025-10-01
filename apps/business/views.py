@@ -1,11 +1,12 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import Business, PaymentMethod, Review
-from .serializers import BusinessSerializer, PaymentMethodSerializer, ReviewSerializer
+from .models import Business, PaymentMethod, BusinessReview
+from .serializers import BusinessSerializer, PaymentMethodSerializer, BusinessReviewSerializer
 from django.db import models
 from rest_framework import serializers
 from rest_framework.permissions import IsAdminUser
+from django.utils import timezone
 
 
 class BusinessViewSet(viewsets.ModelViewSet):
@@ -50,22 +51,22 @@ class PaymentMethodsViewSet(viewsets.ReadOnlyModelViewSet):
         # Users can only see payment methods of their own businesses
         return PaymentMethod.objects.filter(business__owner=self.request.user)
 
-class ReviewViewSet(viewsets.ModelViewSet):
-    queryset = Review.objects.all()
-    serializer_class = ReviewSerializer
+class BusinessReviewViewSet(viewsets.ModelViewSet):
+    queryset = BusinessReview.objects.all()
+    serializer_class = BusinessReviewSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         # Filter reviews based on business or user context
-        return Review.objects.filter(
+        return BusinessReview.objects.filter(
             models.Q(product__owner=self.request.user) | 
             models.Q(user=self.request.user)
         )
 
     def perform_create(self, serializer):
         # Validate that the user hasn't already reviewed this business
-        business_id = self.request.data.get('product')
-        existing_review = Review.objects.filter(
+        business_id = self.request.data.get('business_id')
+        existing_review = BusinessReview.objects.filter(
             user=self.request.user, 
             product_id=business_id
         ).exists()

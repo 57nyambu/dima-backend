@@ -26,11 +26,13 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.postgres',
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'requests',
     'mptt',
+    'imagekit',
     'drf_spectacular',
     'apps.accounts',
     'apps.products',
@@ -58,7 +60,7 @@ REST_FRAMEWORK = {
 APPEND_SLASH = True
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),  # Short-lived access tokens
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=2),  # Short-lived access tokens
     'REFRESH_TOKEN_LIFETIME': timedelta(days=10),     # Longer-lived refresh tokens
     'ROTATE_REFRESH_TOKENS': True,                  # Issue a new refresh token on every use
     'BLACKLIST_AFTER_ROTATION': True,               # Blacklist old refresh tokens if rotated
@@ -145,8 +147,46 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+# Storage Configuration
+# Set to 'cloud' for cloud storage or 'local' for traditional local storage
+STORAGE_BACKEND = env('STORAGE_BACKEND', default='local')
+
+# Media configuration based on storage backend
+if STORAGE_BACKEND == 'cloud':
+    # Cloud Media Storage Configuration
+    MEDIA_URL = 'https://deploy.finarchitect.online/qazsw/'
+    MEDIA_ROOT = os.path.join(BASE_DIR, 'media')  # Local storage for processing before upload
+    
+    # Cloud Storage Settings
+    CLOUD_MEDIA_SERVER = {
+        'BASE_URL': 'https://deploy.finarchitect.online/qazsw',
+        'UPLOAD_PATH': '/home/prod/cache',
+        'SUPPORTED_FORMATS': ['jpeg', 'jpg', 'png', 'webp'],
+        'MAX_FILE_SIZE': 5242880,  # 5MB
+    }
+else:
+    # Local Media Storage Configuration (Default)
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# File Upload Settings
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
+FILE_UPLOAD_PERMISSIONS = 0o644
+
+# Image Processing Settings
+IMAGE_PROCESSING = {
+    'ENABLE_OPTIMIZATION': True,
+    'DEFAULT_QUALITY': 85,
+    'MAX_WIDTH': 1200,
+    'MAX_HEIGHT': 1200,
+    'THUMBNAIL_SIZES': {
+        'small': (150, 150),
+        'medium': (300, 300),
+        'large': (600, 600),
+    },
+    'ENABLE_WEBP': True,
+    'ENABLE_PROGRESSIVE_JPEG': True,
+}
 
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
@@ -162,9 +202,76 @@ X_FRAME_OPTIONS = 'DENY'
 SECURE_CONTENT_TYPE_NOSNIFF = True
 
 # Static files configuration
-STATIC_URL = '/static/'
+STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'),
 ]
+
+#M-PESA settings
+MPESA_CONSUMER_KEY = env('MPESA_CONSUMER_KEY')
+MPESA_CONSUMER_SECRET = env('MPESA_CONSUMER_SECRET')
+MPESA_SHORTCODE = env('MPESA_SHORTCODE')
+
+
+# Cache configuration (recommended for marketplace performance)
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://localhost:6379/1',
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        },
+        'TIMEOUT': 300,  # 5 minutes default timeout
+        'KEY_PREFIX': 'dima'  # Prefix for all cache keys
+    }
+}
+
+# Celery configuration for background tasks
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Africa/Nairobi'
+
+# Marketplace-specific settings
+MARKETPLACE_SETTINGS = {
+    'DEFAULT_COMMISSION_RATE': 10.0,  # 10%
+    'MAX_CART_ITEMS': 50,
+    'SEARCH_RESULTS_PER_PAGE': 24,
+    'ENABLE_PRODUCT_REVIEWS': True,
+    'ENABLE_VENDOR_REVIEWS': True,
+    'AUTO_APPROVE_REVIEWS': False,
+    'LOW_STOCK_THRESHOLD': 10,
+    'ABANDONED_CART_DAYS': 10,
+}
+
+# Email configuration
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+DEFAULT_FROM_EMAIL = 'noreply@yourmarketplace.com'
+
+# PostgreSQL full-text search (optional but recommended)
+#if 'postgresql' in DATABASES['default']['ENGINE']:
+#    INSTALLED_APPS.append('django.contrib.postgres')
+
+# Logging configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': 'marketplace.log',
+        },
+    },
+    'loggers': {
+        'marketplace': {
+            'handlers': ['file'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+    },
+}

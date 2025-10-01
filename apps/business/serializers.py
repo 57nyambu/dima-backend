@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Business, PaymentMethod, BusinessReview
+from apps.products.models import Product
 
 class PaymentMethodSerializer(serializers.ModelSerializer):
     class Meta:
@@ -95,11 +96,29 @@ class BusinessSerializer(serializers.ModelSerializer):
         
         return instance
 
-class ReviewSerializer(serializers.ModelSerializer):
+class BusinessReviewSerializer(serializers.ModelSerializer):
+    user = serializers.EmailField(source='user.email', read_only=True)
+    business = serializers.CharField(source='product.name', read_only=True)
+    business_type = serializers.CharField(source='product.get_business_type_display', read_only=True)
+    business_id = serializers.PrimaryKeyRelatedField(
+        source='product',
+        queryset=Business.objects.all(),
+        write_only=True
+    )
+    orders_stats = serializers.SerializerMethodField()
+
     class Meta:
         model = BusinessReview
-        fields = ['id', 'product', 'user', 'rating', 'comment', 'mpesa_code', 'created_at', '']
-        read_only_fields = ['user', 'created_at']
+        fields = ['id', 'business', 'business_type', 'business_id', 'user', 
+                 'rating', 'comment', 'orders_stats', 'mpesa_code', 'created_at']
+        read_only_fields = ['user', 'created_at', 'orders_stats']
+
+    def get_orders_stats(self, obj):
+        return {
+            'completed': obj.orders_complete,
+            'pending': obj.orders_pending,
+            'canceled': obj.canceled_orders
+        }
 
     def create(self, validated_data):
         # Automatically set the user to the currently logged-in user

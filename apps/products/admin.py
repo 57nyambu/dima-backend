@@ -17,7 +17,7 @@ class CategoryImageAdmin(admin.ModelAdmin):
     def image_preview(self, obj):
         return format_html(
             '<img src="{}" width="50" height="50" />',
-            obj.image.url if obj.image else ''
+            obj.original.url if obj.original else ''
         )
     image_preview.short_description = 'Image'
 

@@ -1,15 +1,41 @@
-from rest_framework import status, pagination
+from rest_framework import status, pagination, permissions, serializers
 from rest_framework.parsers import MultiPartParser, FormParser
-from .models import Category, Product, ProductImage, CategoryImage
+from .models import Category, Product, ProductImage, CategoryImage, ProductReview
 from .serializers import (
     CategorySerializer, ProductSerializer, ProductImageSerializer,
-    CategoryImageSerializer, ProductDetailsSerializer
+    CategoryImageSerializer, ProductDetailsSerializer, ProductReviewSerializer
 )
 from rest_framework.decorators import action
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.response import Response
-from django.db import transaction
-from django.db import models
+from django.db import models, transaction
+
+class ProductReviewViewSet(ModelViewSet):
+    queryset = ProductReview.objects.all()
+    serializer_class = ProductReviewSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        # Filter reviews based on product's business owner or the reviewer
+        return ProductReview.objects.filter(
+            models.Q(product__business__owner=self.request.user) | 
+            models.Q(user=self.request.user)
+        )
+
+    def perform_create(self, serializer):
+        # Validate that the user hasn't already reviewed this product
+        product_id = self.request.data.get('product_id')
+        existing_review = ProductReview.objects.filter(
+            user=self.request.user, 
+            product_id=product_id
+        ).exists()
+        
+        if existing_review:
+            raise serializers.ValidationError(
+                "You have already reviewed this product."
+            )
+        
+        serializer.save(user=self.request.user)
 
 # Handles creation of a category along with its image in a single request.
 class CustomPagination(pagination.PageNumberPagination):
@@ -27,7 +53,7 @@ class Category_ImageViewSet(ModelViewSet):
     @transaction.atomic
     def create_category_with_image(self, request):
         category_data = request.data.copy()
-        category_image = request.FILES.get('image')
+        category_image = request.FILES.get('original')
 
         category_serializer = CategorySerializer(data=category_data)
         if category_serializer.is_valid():

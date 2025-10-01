@@ -7,6 +7,7 @@ from mptt.models import MPTTModel, TreeForeignKey
 from imagekit.processors import ResizeToFill
 from imagekit.models import ImageSpecField
 from django.core.exceptions import ValidationError
+from django.conf import settings
 
 
 class Category(MPTTModel):
@@ -35,12 +36,90 @@ class Category(MPTTModel):
         return self.name
 
 
+def category_image_path(instance, filename):
+    """Generate upload path for category images based on storage backend"""
+    from apps.utils.storage_selector import get_upload_path_function
+    path_func = get_upload_path_function('category')
+    return path_func(instance, filename)
+
 class CategoryImage(models.Model):
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='images')
-    image = models.ImageField(upload_to='categories/')
+    original = models.ImageField(
+        upload_to=category_image_path, 
+        max_length=255, 
+        null=True, 
+        blank=True
+    )
+    # Small thumbnail for mobile category lists (150x150)
+    thumbnail_small = ImageSpecField(
+        source='original',
+        processors=[ResizeToFill(150, 150)],
+        format='JPEG',
+        options={'quality': 80}
+    )
+    # Medium size for category cards (300x200)
+    thumbnail_medium = ImageSpecField(
+        source='original',
+        processors=[ResizeToFill(300, 200)],
+        format='JPEG',
+        options={'quality': 85}
+    )
+    # Larger size for category headers (600x300)
+    thumbnail_large = ImageSpecField(
+        source='original',
+        processors=[ResizeToFill(600, 300)],
+        format='JPEG',
+        options={'quality': 90}
+    )
     alt_text = models.CharField(max_length=255, blank=True)
     is_feature = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-is_feature', 'created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['category'],
+                condition=models.Q(is_feature=True),
+                name='unique_feature_image_per_category'
+            )
+        ]
+
+    def save(self, *args, **kwargs):
+        # Set storage backend dynamically
+        if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud':
+            from apps.utils.storage_selector import get_image_storage
+            self.original.storage = get_image_storage()
+        
+        if self.is_feature:
+            # Unset is_feature for other images of this category
+            CategoryImage.objects.filter(
+                category=self.category, 
+                is_feature=True
+            ).exclude(pk=self.pk).update(is_feature=False)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Image for {self.category.name}"
+
+    class Meta:
+        ordering = ['-is_feature', 'created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['category'],
+                condition=models.Q(is_feature=True),
+                name='unique_feature_image_per_category'
+            )
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.is_feature:
+            # Unset is_feature for other images of this category
+            CategoryImage.objects.filter(
+                category=self.category, 
+                is_feature=True
+            ).exclude(pk=self.pk).update(is_feature=False)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Image for {self.category.name}"
@@ -66,17 +145,71 @@ class Product(models.Model):
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = slugify(self.name)
+        
+        # Check if this is a new product
+        is_new = self._state.adding
+        
         super().save(*args, **kwargs)
+        
+        # Create or update search index after save
+        if hasattr(self, 'search_index'):
+            self.search_index.save()
+        else:
+            from apps.marketplace.models import ProductSearchIndex
+            ProductSearchIndex.objects.create(product=self)
 
     def __str__(self):
         return f"{self.name} ({self.category}) - {self.price}"
     
-def upload_to(instance, filename):
-    return f'products/{instance.product.slug}/{filename}'
+    @property
+    def effective_price(self):
+        """Get the current effective price"""
+        return self.discounted_price if self.discounted_price > 0 else self.price
+    
+    @property
+    def discount_percentage(self):
+        """Calculate discount percentage if applicable"""
+        if self.discounted_price and self.discounted_price < self.price:
+            return round((1 - self.discounted_price / self.price) * 100)
+        return 0
+    
+    @property
+    def is_in_stock(self):
+        """Check if product is in stock"""
+        return self.stock_qty > 0
+    
+    @property
+    def is_low_stock(self):
+        """Check if product is running low on stock (less than 10 units)"""
+        return 0 < self.stock_qty < 10
+    
+    def increase_view_count(self):
+        """Increment product view count"""
+        if hasattr(self, 'search_index'):
+            self.search_index.view_count += 1
+            self.search_index.save(update_fields=['view_count'])
+    
+    def update_sales_count(self, quantity=1):
+        """Update sales count after successful order"""
+        self.sales_count += quantity
+        self.save(update_fields=['sales_count'])
+        
+        if hasattr(self, 'search_index'):
+            self.search_index.sales_count += quantity
+            self.search_index.save(update_fields=['sales_count'])
+    
+def product_image_path(instance, filename):
+    """Generate upload path for product images based on storage backend"""
+    from apps.utils.storage_selector import get_upload_path_function
+    path_func = get_upload_path_function('product')
+    return path_func(instance, filename)
 
 class ProductImage(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='images')
-    original = models.ImageField(upload_to='product_images/%Y/%m/', max_length=255)
+    original = models.ImageField(
+        upload_to=product_image_path, 
+        max_length=255
+    )
     thumbnail = ImageSpecField(source='original', processors=[ResizeToFill(300, 300)], format='JPEG', options={'quality': 85})
     medium = ImageSpecField(source='original', processors=[ResizeToFill(600, 600)], format='JPEG', options={'quality': 90})
     is_primary = models.BooleanField(default=False)
@@ -93,6 +226,11 @@ class ProductImage(models.Model):
         ]
 
     def save(self, *args, **kwargs):
+        # Set storage backend dynamically
+        if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud':
+            from apps.utils.storage_selector import get_image_storage
+            self.original.storage = get_image_storage()
+        
         if self.is_primary:
             # Unset is_primary for other images of this product
             ProductImage.objects.filter(product=self.product, is_primary=True).exclude(pk=self.pk).update(is_primary=False)

@@ -1,0 +1,221 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ product.name }} | Dima{% endblock %}
+
+{% block extra_css %}
+<style>
+    .breadcrumb-item + .breadcrumb-item::before {
+        content: "›";
+    }
+    
+    .product-image {
+        max-height: 400px;
+        object-fit: contain;
+    }
+
+    .stock-badge {
+        font-size: 0.875rem;
+        padding: 0.25rem 0.5rem;
+    }
+
+    .price-original {
+        text-decoration: line-through;
+        color: #6c757d;
+        font-size: 1rem;
+    }
+
+    .price-current {
+        font-size: 1.75rem;
+        font-weight: bold;
+        color: #0d6efd;
+    }
+
+    .vendor-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.875rem;
+    }
+
+    .rating-stars {
+        color: #ffc107;
+    }
+
+    .product-actions {
+        border-top: 1px solid #dee2e6;
+        padding-top: 1rem;
+        margin-top: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'apps.core:landing' %}">Home</a></li>
+            {% for category in product.category_breadcrumb %}
+            <li class="breadcrumb-item">
+                <a href="{% url 'apps.core:landing' %}?category={{ category.slug }}">
+                    {{ category.name }}
+                </a>
+            </li>
+            {% endfor %}
+            <li class="breadcrumb-item active">{{ product.name }}</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <!-- Product Images -->
+        <div class="col-md-6 mb-4">
+            {% if product.primary_image %}
+            <img src="{{ product.primary_image }}" class="img-fluid product-image" alt="{{ product.name }}">
+            {% else %}
+            <div class="bg-light p-5 text-center">
+                <i class="bi bi-image fs-1"></i>
+                <p>No image available</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Product Info -->
+        <div class="col-md-6">
+            <h1 class="mb-3">{{ product.name }}</h1>
+
+            <!-- Stock Status -->
+            {% if product.in_stock %}
+                {% if product.low_stock %}
+                <span class="badge bg-warning stock-badge">Only {{ product.stock_qty }} left in stock</span>
+                {% else %}
+                <span class="badge bg-success stock-badge">In Stock</span>
+                {% endif %}
+            {% else %}
+            <span class="badge bg-danger stock-badge">Out of Stock</span>
+            {% endif %}
+
+            <!-- Rating -->
+            <div class="mb-3">
+                <div class="rating-stars">
+                    {% for i in "12345"|make_list %}
+                    <i class="bi bi-star{% if forloop.counter <= product.avg_rating %}-fill{% endif %}"></i>
+                    {% endfor %}
+                </div>
+                <span class="text-muted">({{ product.review_count }} reviews)</span>
+            </div>
+
+            <!-- Price -->
+            <div class="mb-4">
+                {% if product.discount_percentage > 0 %}
+                <div class="price-original">KES {{ product.price }}</div>
+                <div class="price-current">
+                    KES {{ product.effective_price }}
+                    <span class="badge bg-danger">-{{ product.discount_percentage }}%</span>
+                </div>
+                {% else %}
+                <div class="price-current">KES {{ product.price }}</div>
+                {% endif %}
+            </div>
+
+            <!-- Vendor Info -->
+            <div class="mb-4">
+                <h5>Sold by</h5>
+                <div class="d-flex align-items-center gap-2">
+                    <a href="#" class="text-decoration-none">
+                        {{ product.vendor.name }}
+                    </a>
+                    {% if product.vendor.is_verified %}
+                    <span class="badge bg-primary vendor-badge">
+                        <i class="bi bi-patch-check-fill"></i> Verified
+                    </span>
+                    {% endif %}
+                </div>
+                <div class="text-muted small">
+                    <div>Rating: {{ product.vendor.avg_rating|floatformat:1 }} ({{ product.vendor.review_count }} reviews)</div>
+                    <div>Products: {{ product.vendor.product_count }}</div>
+                    <div>Response Time: {{ product.vendor.response_time }}</div>
+                </div>
+            </div>
+
+            <!-- Product Actions -->
+            <div class="product-actions">
+                {% if product.in_stock %}
+                <button class="btn btn-primary btn-lg w-100 mb-2" id="addToCart">
+                    <i class="bi bi-cart-plus"></i> Add to Cart
+                </button>
+                <button class="btn btn-outline-primary w-100" id="addToWishlist">
+                    <i class="bi bi-heart{% if product.is_in_wishlist %}-fill{% endif %}"></i>
+                    {% if product.is_in_wishlist %}Remove from{% else %}Add to{% endif %} Wishlist
+                </button>
+                {% else %}
+                <button class="btn btn-secondary btn-lg w-100" disabled>Out of Stock</button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Product Description -->
+    <div class="row mt-5">
+        <div class="col-12">
+            <h3>Product Description</h3>
+            <div class="card">
+                <div class="card-body">
+                    {{ product.description|linebreaks }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Product Stats -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <h5>{{ product.sales_count }}</h5>
+                            <small class="text-muted">Sales</small>
+                        </div>
+                        <div class="col-4">
+                            <h5>{{ product.review_count }}</h5>
+                            <small class="text-muted">Reviews</small>
+                        </div>
+                        <div class="col-4">
+                            <h5>{{ product.avg_rating|floatformat:1 }}/5</h5>
+                            <small class="text-muted">Rating</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle Add to Cart
+    const addToCartBtn = document.getElementById('addToCart');
+    if (addToCartBtn) {
+        addToCartBtn.addEventListener('click', function() {
+            // Handle cart functionality in frontend
+            const productId = "{{ product.id }}";
+            // Add to frontend cart implementation
+            alert('Product added to cart');
+        });
+    }
+
+    // Handle Add to Wishlist
+    const addToWishlistBtn = document.getElementById('addToWishlist');
+    if (addToWishlistBtn) {
+        addToWishlistBtn.addEventListener('click', function() {
+            // Handle wishlist functionality in frontend
+            const productId = "{{ product.id }}";
+            // Add to frontend wishlist implementation
+            alert('Product added to wishlist');
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -53,7 +53,7 @@ class CustomUser(AbstractBaseUser):
 
     @property
     def is_business_owner(self):
-        return self.owned_businesses.exists()
+        return self.businesses.exists()
 
     @property
     def is_business_member(self):
