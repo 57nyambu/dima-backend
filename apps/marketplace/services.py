@@ -92,6 +92,9 @@ class OrderSplitterService:
 class CommissionEngine:
     """Service to calculate platform commission and vendor payouts"""
     
+    # Default commission rate (10%)
+    PLATFORM_COMMISSION_RATE = 0.10
+    
     # Get commission rate from MarketplaceSettings
     @staticmethod
     def get_commission_rate():
@@ -107,7 +110,7 @@ class CommissionEngine:
         Calculate commission breakdown for an order
         """
         # Get commission rate (could be per-business or global)
-        commission_rate = CommissionEngine.PLATFORM_COMMISSION_RATE
+        commission_rate = CommissionEngine.get_commission_rate()
 
         # If business has custom commission rate (future feature)
         # if business and hasattr(business, 'commission_rate'):

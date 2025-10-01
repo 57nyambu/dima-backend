@@ -154,44 +154,92 @@ def homepage_data(request):
 @permission_classes([IsAuthenticatedOrReadOnly])
 def search_products(request):
     """Advanced product search"""
-    query = request.query_params.get('q', '')
-    page = int(request.query_params.get('page', 1))
-    per_page = int(request.query_params.get('per_page', 24))
-    
-    filters = {
-        'category': request.query_params.get('category'),
-        'business': request.query_params.get('business'),
-        'price_min': request.query_params.get('price_min'),
-        'price_max': request.query_params.get('price_max'),
-        'min_rating': request.query_params.get('min_rating'),
-        'verified_only': request.query_params.get('verified_only') == 'true',
-        'in_stock_only': request.query_params.get('in_stock_only') == 'true',
-        'sort_by': request.query_params.get('sort_by', 'relevance')
-    }
-    
-    # Remove None values
-    filters = {k: v for k, v in filters.items() if v is not None}
-    
-    results = SearchService.search_products(query, filters, page, per_page)
+    try:
+        query = request.query_params.get('q', '')
+        page = int(request.query_params.get('page', 1))
+        per_page = int(request.query_params.get('per_page', 24))
+        
+        # Validate pagination parameters
+        if page < 1:
+            page = 1
+        if per_page < 1 or per_page > 100:
+            per_page = 24
+        
+        filters = {
+            'category': request.query_params.get('category'),
+            'business': request.query_params.get('business'),
+            'price_min': request.query_params.get('price_min'),
+            'price_max': request.query_params.get('price_max'),
+            'min_rating': request.query_params.get('min_rating'),
+            'verified_only': request.query_params.get('verified_only') == 'true',
+            'in_stock_only': request.query_params.get('in_stock_only') == 'true',
+            'sort_by': request.query_params.get('sort_by', 'relevance')
+        }
+        
+        # Remove None values and validate numeric filters
+        clean_filters = {}
+        for k, v in filters.items():
+            if v is not None:
+                if k in ['price_min', 'price_max', 'min_rating']:
+                    try:
+                        clean_filters[k] = float(v) if v else None
+                    except (ValueError, TypeError):
+                        continue  # Skip invalid numeric values
+                else:
+                    clean_filters[k] = v
+        
+        results = SearchService.search_products(query, clean_filters, page, per_page)
 
-    # IMPORTANT: Pass queryset objects directly so nested ProductMarketplaceSerializer
-    # receives model instances (previous code passed already serialized dicts,
-    # causing AttributeError: 'dict' object has no attribute 'discounted_price').
-    response_data = {
-        'products': results['products'],              # queryset slice
-        'vendors': [],                                 # placeholder for vendor search
-        'total_products': results['total_count'],
-        'total_vendors': 0,
-        # expose raw pagination data for client if needed
-        'page': results['page'],
-        'per_page': results['per_page'],
-        'total_pages': results['total_pages'],
-        'has_next': results['has_next'],
-        'has_prev': results['has_prev']
-    }
+        # IMPORTANT: Pass queryset objects directly so nested ProductMarketplaceSerializer
+        # receives model instances (previous code passed already serialized dicts,
+        # causing AttributeError: 'dict' object has no attribute 'discounted_price').
+        response_data = {
+            'products': results['products'],              # queryset slice
+            'vendors': [],                                 # placeholder for vendor search
+            'total_products': results['total_count'],
+            'total_vendors': 0,
+            # expose raw pagination data for client if needed
+            'page': results['page'],
+            'per_page': results['per_page'],
+            'total_pages': results['total_pages'],
+            'has_next': results['has_next'],
+            'has_prev': results['has_prev']
+        }
 
-    serializer = SearchResultSerializer(response_data, context={'request': request})
-    return Response(serializer.data)
+        serializer = SearchResultSerializer(response_data, context={'request': request})
+        return Response(serializer.data)
+    
+    except Exception as e:
+        # Log the error for debugging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Search error: {str(e)}", exc_info=True)
+        
+        # Return a user-friendly error response
+        return Response({
+            'error': 'Search service is temporarily unavailable',
+            'products': [],
+            'vendors': [],
+            'total_products': 0,
+            'total_vendors': 0,
+            'filters': {
+                'categories': [],
+                'price_ranges': [
+                    {'min': 0, 'max': 1000, 'label': 'Under KES 1,000'},
+                    {'min': 1000, 'max': 5000, 'label': 'KES 1,000 - 5,000'},
+                    {'min': 5000, 'max': 10000, 'label': 'KES 5,000 - 10,000'},
+                    {'min': 10000, 'max': 50000, 'label': 'KES 10,000 - 50,000'},
+                    {'min': 50000, 'max': None, 'label': 'Over KES 50,000'},
+                ],
+                'vendors': [],
+                'rating_options': [
+                    {'min': 4, 'label': '4+ stars'},
+                    {'min': 3, 'label': '3+ stars'},
+                    {'min': 2, 'label': '2+ stars'},
+                    {'min': 1, 'label': '1+ stars'},
+                ]
+            }
+        }, status=status.HTTP_200_OK)  # Return 200 instead of 500 for better UX
 
 
 @api_view(['GET'])
@@ -217,12 +265,22 @@ def search_vendors(request):
 @api_view(['GET'])
 def search_suggestions(request):
     """Get search suggestions"""
-    query = request.query_params.get('q', '')
-    if len(query) < 2:
-        return Response({'suggestions': []})
+    try:
+        query = request.query_params.get('q', '')
+        if len(query) < 2:
+            return Response({'suggestions': []})
+        
+        suggestions = SearchService.get_search_suggestions(query, limit=10)
+        return Response({'suggestions': suggestions})
     
-    suggestions = SearchService.get_search_suggestions(query, limit=10)
-    return Response({'suggestions': suggestions})
+    except Exception as e:
+        # Log the error for debugging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Search suggestions error: {str(e)}", exc_info=True)
+        
+        # Return empty suggestions instead of an error
+        return Response({'suggestions': []})
 
 
 # Cart Management Views

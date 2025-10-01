@@ -508,35 +508,56 @@ class SearchResultSerializer(serializers.Serializer):
         """Available filters based on search results"""
         products = obj.get('products', [])
         if not products:
-            return {}
+            return {
+                'categories': [],
+                'price_ranges': [
+                    {'min': 0, 'max': 1000, 'label': 'Under KES 1,000'},
+                    {'min': 1000, 'max': 5000, 'label': 'KES 1,000 - 5,000'},
+                    {'min': 5000, 'max': 10000, 'label': 'KES 5,000 - 10,000'},
+                    {'min': 10000, 'max': 50000, 'label': 'KES 10,000 - 50,000'},
+                    {'min': 50000, 'max': None, 'label': 'Over KES 50,000'},
+                ],
+                'vendors': [],
+                'rating_options': [
+                    {'min': 4, 'label': '4+ stars'},
+                    {'min': 3, 'label': '3+ stars'},
+                    {'min': 2, 'label': '2+ stars'},
+                    {'min': 1, 'label': '1+ stars'},
+                ]
+            }
         
         # Extract filter options from products
         categories = set()
         price_ranges = []
         vendors = set()
-        ratings = []
         
-        for product in products:
-            categories.add((product.category.id, product.category.name))
-            price_ranges.append(float(product.price))
-            vendors.add((product.business.id, product.business.name))
-            avg_rating = product.reviews.aggregate(avg=Avg('rating'))['avg']
-            if avg_rating:
-                ratings.append(avg_rating)
+        try:
+            for product in products:
+                # Safely access category
+                if hasattr(product, 'category') and product.category:
+                    categories.add((product.category.id, product.category.name))
+                
+                # Safely access price
+                if hasattr(product, 'price'):
+                    price_ranges.append(float(product.price))
+                
+                # Safely access business/vendor
+                if hasattr(product, 'business') and product.business:
+                    vendors.add((product.business.id, product.business.name))
+        except Exception as e:
+            # Log the error but don't break the API
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error generating filters: {e}")
         
         # Generate price ranges
-        if price_ranges:
-            min_price = min(price_ranges)
-            max_price = max(price_ranges)
-            price_brackets = [
-                {'min': 0, 'max': 1000, 'label': 'Under KES 1,000'},
-                {'min': 1000, 'max': 5000, 'label': 'KES 1,000 - 5,000'},
-                {'min': 5000, 'max': 10000, 'label': 'KES 5,000 - 10,000'},
-                {'min': 10000, 'max': 50000, 'label': 'KES 10,000 - 50,000'},
-                {'min': 50000, 'max': None, 'label': 'Over KES 50,000'},
-            ]
-        else:
-            price_brackets = []
+        price_brackets = [
+            {'min': 0, 'max': 1000, 'label': 'Under KES 1,000'},
+            {'min': 1000, 'max': 5000, 'label': 'KES 1,000 - 5,000'},
+            {'min': 5000, 'max': 10000, 'label': 'KES 5,000 - 10,000'},
+            {'min': 10000, 'max': 50000, 'label': 'KES 10,000 - 50,000'},
+            {'min': 50000, 'max': None, 'label': 'Over KES 50,000'},
+        ]
         
         return {
             'categories': [{'id': cat[0], 'name': cat[1]} for cat in categories],
@@ -553,9 +574,9 @@ class SearchResultSerializer(serializers.Serializer):
 
 class BannerSerializer(serializers.ModelSerializer):
     """Serializer for marketplace banners"""
-    thumbnail_small_url = serializers.URLField(source='thumbnail_small.url', read_only=True)
-    thumbnail_medium_url = serializers.URLField(source='thumbnail_medium.url', read_only=True)
-    thumbnail_large_url = serializers.URLField(source='thumbnail_large.url', read_only=True)
+    thumbnail_small_url = serializers.SerializerMethodField()
+    thumbnail_medium_url = serializers.SerializerMethodField()
+    thumbnail_large_url = serializers.SerializerMethodField()
     
     class Meta:
         model = Banner
@@ -565,6 +586,21 @@ class BannerSerializer(serializers.ModelSerializer):
             'link_url', 'link_text', 'position', 'is_active',
             'start_date', 'end_date'
         ]
+    
+    def get_thumbnail_small_url(self, obj):
+        if hasattr(obj, 'thumbnail_small') and obj.thumbnail_small:
+            return obj.thumbnail_small.url
+        return None
+    
+    def get_thumbnail_medium_url(self, obj):
+        if hasattr(obj, 'thumbnail_medium') and obj.thumbnail_medium:
+            return obj.thumbnail_medium.url
+        return None
+    
+    def get_thumbnail_large_url(self, obj):
+        if hasattr(obj, 'thumbnail_large') and obj.thumbnail_large:
+            return obj.thumbnail_large.url
+        return None
 
 
 class CheckoutSessionSerializer(serializers.Serializer):
