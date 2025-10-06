@@ -1,62 +1,146 @@
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
+import logging
+
+logger = logging.getLogger('storage')
 
 def get_image_storage():
     """
     Get the appropriate storage backend based on configuration
+    
+    Returns CloudImageStorage for cloud mode, FileSystemStorage for local mode
     """
-    if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud':
+    storage_backend = getattr(settings, 'STORAGE_BACKEND', 'local')
+    
+    if storage_backend == 'cloud':
         try:
             from apps.utils.storage import CloudImageStorage
+            logger.info("Using CloudImageStorage backend")
             return CloudImageStorage()
-        except ImportError:
+        except ImportError as e:
             # Fallback to local storage if cloud storage is not available
+            logger.warning(f"CloudImageStorage import failed: {e}. Falling back to local storage.")
             return FileSystemStorage(location=settings.MEDIA_ROOT, base_url=settings.MEDIA_URL)
     else:
+        logger.info("Using FileSystemStorage backend")
         return FileSystemStorage(location=settings.MEDIA_ROOT, base_url=settings.MEDIA_URL)
 
 def get_upload_path_function(model_type='product'):
     """
     Get the appropriate upload path function based on storage backend
+    
+    IMPORTANT: For cloud storage, returns simple path generator
+    Cloud server handles date-based organization automatically (YYYY/MM/DD)
     """
-    if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud':
-        if model_type == 'product':
-            return cloud_product_image_path
-        elif model_type == 'category':
-            return cloud_category_image_path
+    storage_backend = getattr(settings, 'STORAGE_BACKEND', 'local')
+    
+    if storage_backend == 'cloud':
+        # Use simple cloud path - server organizes by date
+        return cloud_image_path
     else:
+        # Use traditional local paths with manual organization
         if model_type == 'product':
             return local_product_image_path
         elif model_type == 'category':
             return local_category_image_path
+        else:
+            return local_product_image_path
+
+# Cloud storage path function (SIMPLIFIED per integration guide)
+def cloud_image_path(instance, filename):
+    """
+    Generate simple filename for cloud upload
     
-    # Fallback
-    return local_product_image_path
-
-# Cloud storage path functions
-def cloud_product_image_path(instance, filename):
-    """Generate optimized upload path for product images (cloud)"""
+    The cloud server automatically organizes files into date-based folders (YYYY/MM/DD)
+    and generates unique hashed filenames.
+    
+    We just need to provide a clean filename.
+    """
     try:
         from apps.utils.storage import generate_cloud_path
-        return generate_cloud_path(instance, filename, 'originals')
+        return generate_cloud_path(instance, filename)
     except ImportError:
         # Fallback to local path if cloud utils are not available
-        return local_product_image_path(instance, filename)
-
-def cloud_category_image_path(instance, filename):
-    """Generate optimized upload path for category images (cloud)"""
-    try:
-        from apps.utils.storage import generate_cloud_path
-        return generate_cloud_path(instance, filename, 'originals')
-    except ImportError:
-        # Fallback to local path if cloud utils are not available
-        return local_category_image_path(instance, filename)
+        logger.warning("Cloud path generator not available, using local path")
+        if hasattr(instance, 'product'):
+            return local_product_image_path(instance, filename)
+        else:
+            return local_category_image_path(instance, filename)
 
 # Local storage path functions (your original setup)
 def local_product_image_path(instance, filename):
     """Generate upload path for product images (local)"""
-    return f'product_images/{instance.product.created_at.year}/{instance.product.created_at.month}/{filename}'
+    import os
+    from django.utils.text import slugify
+    import uuid
+    
+    # Get extension
+    name, ext = os.path.splitext(filename)
+    # Generate unique filename
+    unique_name = f"{slugify(name)[:30]}-{uuid.uuid4().hex[:8]}{ext}"
+    
+    # Organize by product and date
+    year = instance.product.created_at.year
+    month = instance.product.created_at.month
+    return f'product_images/{year}/{month}/{unique_name}'
 
 def local_category_image_path(instance, filename):
     """Generate upload path for category images (local)"""
-    return f'categories/{instance.category.slug}/{filename}'
+    import os
+    from django.utils.text import slugify
+    import uuid
+    
+    # Get extension
+    name, ext = os.path.splitext(filename)
+    # Generate unique filename
+    unique_name = f"{slugify(name)[:30]}-{uuid.uuid4().hex[:8]}{ext}"
+    
+    return f'categories/{instance.category.slug}/{unique_name}'
+
+
+def get_image_url(file_field, size=None, format=None):
+    """
+    Generate appropriate URL for image based on storage backend
+    
+    For cloud storage: generates processed URLs for different sizes
+    For local storage: returns the standard URL
+    
+    Args:
+        file_field: Django ImageField or FileField instance
+        size: String key from CLOUD_IMAGE_SIZES ('thumbnail_small', 'medium', etc.)
+        format: Image format ('webp', 'jpeg', etc.)
+    
+    Returns:
+        String URL
+    
+    Example:
+        get_image_url(product.image, size='thumbnail_medium')
+        get_image_url(product.image, size='medium', format='webp')
+    """
+    if not file_field:
+        return ''
+    
+    storage_backend = getattr(settings, 'STORAGE_BACKEND', 'local')
+    
+    if storage_backend == 'cloud' and size:
+        try:
+            # Get size configuration
+            sizes = settings.CLOUD_IMAGE_SIZES
+            if size in sizes:
+                size_config = sizes[size]
+                
+                # Get storage instance
+                storage = file_field.storage
+                if hasattr(storage, 'get_processed_url'):
+                    return storage.get_processed_url(
+                        file_field.name,
+                        width=size_config.get('width'),
+                        height=size_config.get('height'),
+                        quality=size_config.get('quality'),
+                        format=format
+                    )
+        except Exception as e:
+            logger.error(f"Error generating processed URL: {e}")
+    
+    # Fallback to standard URL
+    return file_field.url if file_field else ''

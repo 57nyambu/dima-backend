@@ -2,13 +2,24 @@ import os
 from pathlib import Path
 from datetime import timedelta
 import environ
-env = environ.Env(DEBUG=(bool, False))
 import psycopg2
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
+env = environ.Env(DEBUG=(bool, False))
 environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
+
+# Storage Configuration
+#STORAGE_BACKEND = env('STORAGE_BACKEND', default='local')  # 'local' or 'cloud'
+#STORAGE_DEBUG = env.bool('STORAGE_DEBUG', default=False)
+
+# Cloud Storage (same machine in prod = fast!)
+#if STORAGE_BACKEND == 'cloud':
+#    CLOUD_STORAGE_URL = env('CLOUD_STORAGE_URL', default='http://127.0.0.1:8080')
+#else:
+#    MEDIA_ROOT = BASE_DIR / 'media'
+#    MEDIA_URL = '/media/'
 
 
 # Quick-start development settings - unsuitable for production
@@ -43,6 +54,7 @@ INSTALLED_APPS = [
     'apps.marketplace',
     'apps.shipping',
     'apps.core',
+    'apps.utils',  # Added for storage utilities
 ]
 
 REST_FRAMEWORK = {
@@ -83,8 +95,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',  # Add this line
-    
-]
+    ]
 
 ROOT_URLCONF = 'Root.urls'
 
@@ -148,22 +159,52 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
 # Storage Configuration
-# Set to 'cloud' for cloud storage or 'local' for traditional local storage
-STORAGE_BACKEND = env('STORAGE_BACKEND', default='local')
-
 # Media configuration based on storage backend
+
+STORAGE_BACKEND = env('STORAGE_BACKEND')  # 'local' or 'cloud'
+STORAGE_DEBUG = env.bool('STORAGE_DEBUG', default=False)
+
+# Cloud Storage (same machine in prod = fast!)
+if STORAGE_BACKEND == 'cloud':
+    CLOUD_STORAGE_URL = env('CLOUD_STORAGE_URL', default='http://127.0.0.1:8080')
+else:
+    MEDIA_ROOT = BASE_DIR / 'media'
+    MEDIA_URL = '/media/'
+
 if STORAGE_BACKEND == 'cloud':
     # Cloud Media Storage Configuration
-    MEDIA_URL = 'https://deploy.finarchitect.online/qazsw/'
-    MEDIA_ROOT = os.path.join(BASE_DIR, 'media')  # Local storage for processing before upload
-    
-    # Cloud Storage Settings
+    # IMPORTANT: Store only paths in DB, not full URLs
+    # Keep MEDIA_URL local to avoid interfering with Django's static/serve helper
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+    # Cloud Storage Settings - Centralized Configuration (use .env CLOUD_STORAGE_URL)
+    _CLOUD_BASE = CLOUD_STORAGE_URL.rstrip('/')
     CLOUD_MEDIA_SERVER = {
-        'BASE_URL': 'https://deploy.finarchitect.online/qazsw',
-        'UPLOAD_PATH': '/home/prod/cache',
-        'SUPPORTED_FORMATS': ['jpeg', 'jpg', 'png', 'webp'],
-        'MAX_FILE_SIZE': 5242880,  # 5MB
+        'BASE_URL': _CLOUD_BASE,
+        'UPLOAD_ENDPOINT': f"{_CLOUD_BASE}/qazsw-upload/",
+        'DELETE_ENDPOINT': f"{_CLOUD_BASE}/qazsw-delete/",
+        'PROCESS_ENDPOINT': f"{_CLOUD_BASE}/process/",
+        'ORIGINAL_PATH': '/qazsw/',
+        'SUPPORTED_FORMATS': ['jpeg', 'jpg', 'png', 'webp', 'gif', 'bmp', 'tiff'],
+        'MAX_FILE_SIZE': 52428800,  # 50MB as per guide
+        'MAX_DIMENSION': 4000,  # Max width/height
+        'TIMEOUT': 30,  # Request timeout in seconds
+        'RETRY_ATTEMPTS': 3,  # Number of retry attempts for failed uploads
+        'RETRY_DELAY': 1,  # Initial retry delay in seconds (exponential backoff)
     }
+
+    # Thumbnail/Processed Image Settings (using cloud server processing)
+    CLOUD_IMAGE_SIZES = {
+        'thumbnail_small': {'width': 150, 'height': 150, 'quality': 80},
+        'thumbnail_medium': {'width': 300, 'height': 300, 'quality': 85},
+        'thumbnail_large': {'width': 600, 'height': 600, 'quality': 90},
+        'medium': {'width': 800, 'height': 800, 'quality': 90},
+        'large': {'width': 1920, 'height': 1920, 'quality': 95},
+    }
+
+    # Use cloud storage as the default file storage so ImageFields use it automatically
+    DEFAULT_FILE_STORAGE = 'apps.utils.storage.CloudImageStorage'
 else:
     # Local Media Storage Configuration (Default)
     MEDIA_URL = '/media/'
@@ -173,7 +214,7 @@ else:
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
 FILE_UPLOAD_PERMISSIONS = 0o644
 
-# Image Processing Settings
+# Image Processing Settings (used for local storage only)
 IMAGE_PROCESSING = {
     'ENABLE_OPTIMIZATION': True,
     'DEFAULT_QUALITY': 85,
@@ -260,11 +301,33 @@ DEFAULT_FROM_EMAIL = 'noreply@yourmarketplace.com'
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
     'handlers': {
         'file': {
             'level': 'INFO',
             'class': 'logging.FileHandler',
             'filename': 'marketplace.log',
+            'formatter': 'verbose',
+        },
+        'storage_file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': 'storage_debug.log',
+            'formatter': 'verbose',
+        },
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
         },
     },
     'loggers': {
@@ -272,6 +335,11 @@ LOGGING = {
             'handlers': ['file'],
             'level': 'INFO',
             'propagate': True,
+        },
+        'storage': {
+            'handlers': ['storage_file', 'console'] if env('STORAGE_DEBUG', default=False) else ['storage_file'],
+            'level': 'DEBUG' if env('STORAGE_DEBUG', default=False) else 'INFO',
+            'propagate': False,
         },
     },
 }

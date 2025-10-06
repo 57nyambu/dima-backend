@@ -50,27 +50,32 @@ class CategoryImage(models.Model):
         null=True, 
         blank=True
     )
-    # Small thumbnail for mobile category lists (150x150)
-    thumbnail_small = ImageSpecField(
-        source='original',
-        processors=[ResizeToFill(150, 150)],
-        format='JPEG',
-        options={'quality': 80}
-    )
-    # Medium size for category cards (300x200)
-    thumbnail_medium = ImageSpecField(
-        source='original',
-        processors=[ResizeToFill(300, 200)],
-        format='JPEG',
-        options={'quality': 85}
-    )
-    # Larger size for category headers (600x300)
-    thumbnail_large = ImageSpecField(
-        source='original',
-        processors=[ResizeToFill(600, 300)],
-        format='JPEG',
-        options={'quality': 90}
-    )
+    
+    # ImageKit fields for LOCAL storage only
+    # For cloud storage, we use the cloud server's /process/ endpoint instead
+    if settings.STORAGE_BACKEND != 'cloud':
+        # Small thumbnail for mobile category lists (150x150)
+        thumbnail_small = ImageSpecField(
+            source='original',
+            processors=[ResizeToFill(150, 150)],
+            format='JPEG',
+            options={'quality': 80}
+        )
+        # Medium size for category cards (300x200)
+        thumbnail_medium = ImageSpecField(
+            source='original',
+            processors=[ResizeToFill(300, 200)],
+            format='JPEG',
+            options={'quality': 85}
+        )
+        # Larger size for category headers (600x300)
+        thumbnail_large = ImageSpecField(
+            source='original',
+            processors=[ResizeToFill(600, 300)],
+            format='JPEG',
+            options={'quality': 90}
+        )
+    
     alt_text = models.CharField(max_length=255, blank=True)
     is_feature = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -98,28 +103,37 @@ class CategoryImage(models.Model):
                 is_feature=True
             ).exclude(pk=self.pk).update(is_feature=False)
         super().save(*args, **kwargs)
-
-    def __str__(self):
-        return f"Image for {self.category.name}"
-
-    class Meta:
-        ordering = ['-is_feature', 'created_at']
-        constraints = [
-            models.UniqueConstraint(
-                fields=['category'],
-                condition=models.Q(is_feature=True),
-                name='unique_feature_image_per_category'
-            )
-        ]
-
-    def save(self, *args, **kwargs):
-        if self.is_feature:
-            # Unset is_feature for other images of this category
-            CategoryImage.objects.filter(
-                category=self.category, 
-                is_feature=True
-            ).exclude(pk=self.pk).update(is_feature=False)
-        super().save(*args, **kwargs)
+    
+    def delete(self, *args, **kwargs):
+        """Override delete to remove file from storage"""
+        if self.original:
+            # This will trigger cloud deletion if using cloud storage
+            self.original.delete(save=False)
+        super().delete(*args, **kwargs)
+    
+    def get_thumbnail_small_url(self):
+        """Get URL for small thumbnail (150x150)"""
+        if settings.STORAGE_BACKEND == 'cloud':
+            from apps.utils.storage_selector import get_image_url
+            return get_image_url(self.original, size='thumbnail_small')
+        else:
+            return self.thumbnail_small.url if self.original else ''
+    
+    def get_thumbnail_medium_url(self):
+        """Get URL for medium thumbnail (300x200)"""
+        if settings.STORAGE_BACKEND == 'cloud':
+            from apps.utils.storage_selector import get_image_url
+            return get_image_url(self.original, size='thumbnail_medium')
+        else:
+            return self.thumbnail_medium.url if self.original else ''
+    
+    def get_thumbnail_large_url(self):
+        """Get URL for large thumbnail (600x300)"""
+        if settings.STORAGE_BACKEND == 'cloud':
+            from apps.utils.storage_selector import get_image_url
+            return get_image_url(self.original, size='thumbnail_large')
+        else:
+            return self.thumbnail_large.url if self.original else ''
 
     def __str__(self):
         return f"Image for {self.category.name}"
@@ -210,8 +224,23 @@ class ProductImage(models.Model):
         upload_to=product_image_path, 
         max_length=255
     )
-    thumbnail = ImageSpecField(source='original', processors=[ResizeToFill(300, 300)], format='JPEG', options={'quality': 85})
-    medium = ImageSpecField(source='original', processors=[ResizeToFill(600, 600)], format='JPEG', options={'quality': 90})
+    
+    # ImageKit fields for LOCAL storage only
+    # For cloud storage, we use the cloud server's /process/ endpoint instead
+    if settings.STORAGE_BACKEND != 'cloud':
+        thumbnail = ImageSpecField(
+            source='original', 
+            processors=[ResizeToFill(300, 300)], 
+            format='JPEG', 
+            options={'quality': 85}
+        )
+        medium = ImageSpecField(
+            source='original', 
+            processors=[ResizeToFill(600, 600)], 
+            format='JPEG', 
+            options={'quality': 90}
+        )
+    
     is_primary = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -233,8 +262,34 @@ class ProductImage(models.Model):
         
         if self.is_primary:
             # Unset is_primary for other images of this product
-            ProductImage.objects.filter(product=self.product, is_primary=True).exclude(pk=self.pk).update(is_primary=False)
+            ProductImage.objects.filter(
+                product=self.product, 
+                is_primary=True
+            ).exclude(pk=self.pk).update(is_primary=False)
         super().save(*args, **kwargs)
+    
+    def delete(self, *args, **kwargs):
+        """Override delete to remove file from storage"""
+        if self.original:
+            # This will trigger cloud deletion if using cloud storage
+            self.original.delete(save=False)
+        super().delete(*args, **kwargs)
+    
+    def get_thumbnail_url(self):
+        """Get URL for thumbnail (300x300)"""
+        if settings.STORAGE_BACKEND == 'cloud':
+            from apps.utils.storage_selector import get_image_url
+            return get_image_url(self.original, size='thumbnail_medium')
+        else:
+            return self.thumbnail.url if self.original else ''
+    
+    def get_medium_url(self):
+        """Get URL for medium size (600x600)"""
+        if settings.STORAGE_BACKEND == 'cloud':
+            from apps.utils.storage_selector import get_image_url
+            return get_image_url(self.original, size='thumbnail_large')
+        else:
+            return self.medium.url if self.original else ''
 
     def __str__(self):
         return f"Image for {self.product.name}"

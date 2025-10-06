@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
+from django.conf import settings
 from .models import ProductImage, Product, Category, CategoryImage, ProductReview
 
 @admin.register(Category)
@@ -15,10 +16,19 @@ class CategoryImageAdmin(admin.ModelAdmin):
     list_filter = ('is_feature', 'created_at')
     
     def image_preview(self, obj):
-        return format_html(
-            '<img src="{}" width="50" height="50" />',
-            obj.original.url if obj.original else ''
-        )
+        if not obj or not obj.original:
+            return "-"
+        url = ''
+        if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud':
+            try:
+                from apps.utils.storage_selector import get_image_url
+                url = get_image_url(obj.original, size='thumbnail_small') or obj.original.url
+            except Exception:
+                url = obj.original.url
+        else:
+            # Local: prefer ImageKit-generated thumbnail if available
+            url = getattr(getattr(obj, 'thumbnail_small', None), 'url', None) or obj.original.url
+        return format_html('<img src="{}" width="50" height="50" />', url)
     image_preview.short_description = 'Image'
 
 @admin.register(Product)
@@ -40,10 +50,20 @@ class ProductImageAdmin(admin.ModelAdmin):
         return obj.product.name
     
     def thumbnail_preview(self, obj):
-        return format_html(
-            '<img src="{}" width="50" height="50" />',
-            obj.thumbnail.url if obj.thumbnail else ''
-        )
+        if not obj or not obj.original:
+            return "-"
+        url = ''
+        if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud':
+            try:
+                from apps.utils.storage_selector import get_image_url
+                # Use a medium thumbnail for admin preview in cloud mode
+                url = get_image_url(obj.original, size='thumbnail_medium') or obj.original.url
+            except Exception:
+                url = obj.original.url
+        else:
+            # Local: use ImageKit thumbnail if present, fallback to original
+            url = getattr(getattr(obj, 'thumbnail', None), 'url', None) or obj.original.url
+        return format_html('<img src="{}" width="50" height="50" />', url)
     thumbnail_preview.short_description = 'Thumbnail'
 
 @admin.register(ProductReview)

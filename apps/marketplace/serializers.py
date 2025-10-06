@@ -1,5 +1,6 @@
 # marketplace/serializers.py
 from rest_framework import serializers
+from django.conf import settings
 from django.db.models import Avg, Count, Q
 from django.db import models
 from apps.products.models import Product, ProductImage, Category
@@ -62,14 +63,27 @@ class ProductImageSerializer(serializers.ModelSerializer):
         fields = ['id', 'original', 'thumbnail_url', 'medium_url', 'is_primary']
     
     def get_thumbnail_url(self, obj):
-        if obj.thumbnail:
-            return self.context['request'].build_absolute_uri(obj.thumbnail.url)
-        return None
+        # 300x300 in our config
+        if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud':
+            try:
+                from apps.utils.storage_selector import get_image_url
+                return get_image_url(obj.original, size='thumbnail_medium') if obj.original else None
+            except Exception:
+                return obj.original.url if obj.original else None
+        # Local: use ImageKit if available
+        thumb = getattr(obj, 'thumbnail', None)
+        return self.context['request'].build_absolute_uri(thumb.url) if thumb else (self.context['request'].build_absolute_uri(obj.original.url) if obj.original else None)
     
     def get_medium_url(self, obj):
-        if obj.medium:
-            return self.context['request'].build_absolute_uri(obj.medium.url)
-        return None
+        # 600x600 in our config
+        if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud':
+            try:
+                from apps.utils.storage_selector import get_image_url
+                return get_image_url(obj.original, size='thumbnail_large') if obj.original else None
+            except Exception:
+                return obj.original.url if obj.original else None
+        med = getattr(obj, 'medium', None)
+        return self.context['request'].build_absolute_uri(med.url) if med else (self.context['request'].build_absolute_uri(obj.original.url) if obj.original else None)
 
 
 class CategoryBreadcrumbSerializer(serializers.ModelSerializer):
@@ -319,12 +333,21 @@ class CategoryListSerializer(serializers.ModelSerializer):
     
     def get_image(self, obj):
         featured_image = obj.images.filter(is_feature=True).first()
-        if featured_image:
-            return {
-                'url': featured_image.thumbnail_small.url,
-                'alt_text': featured_image.alt_text or obj.name
-            }
-        return None
+        if not featured_image or not featured_image.original:
+            return None
+        if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud':
+            try:
+                from apps.utils.storage_selector import get_image_url
+                url = get_image_url(featured_image.original, size='thumbnail_small') or featured_image.original.url
+            except Exception:
+                url = featured_image.original.url
+        else:
+            # Local: use ImageKit thumb if available
+            url = getattr(getattr(featured_image, 'thumbnail_small', None), 'url', None) or featured_image.original.url
+        return {
+            'url': url,
+            'alt_text': featured_image.alt_text or obj.name
+        }
 
 class HomepageDataSerializer(serializers.Serializer):
     """Aggregated homepage data"""
@@ -341,15 +364,31 @@ class HomepageDataSerializer(serializers.Serializer):
             start_date__lte=now,
             end_date__gte=now
         ).order_by('position')
-        return [{
-            'id': banner.id,
-            'title': banner.title,
-            'subtitle': banner.subtitle,
-            'image': banner.thumbnail_large.url if banner.thumbnail_large else None,
-            'banner_type': banner.banner_type,
-            'link_url': banner.link_url,
-            'link_text': banner.link_text
-        } for banner in banners]
+        data = []
+        for banner in banners:
+            img_url = None
+            if banner.original:
+                if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud':
+                    try:
+                        storage = banner.original.storage
+                        if hasattr(storage, 'get_processed_url'):
+                            img_url = storage.get_processed_url(banner.original.name, width=600, height=300, quality=90)
+                        else:
+                            img_url = banner.original.url
+                    except Exception:
+                        img_url = banner.original.url
+                else:
+                    img_url = banner.thumbnail_large.url if hasattr(banner, 'thumbnail_large') and banner.thumbnail_large else banner.original.url
+            data.append({
+                'id': banner.id,
+                'title': banner.title,
+                'subtitle': banner.subtitle,
+                'image': img_url,
+                'banner_type': banner.banner_type,
+                'link_url': banner.link_url,
+                'link_text': banner.link_text
+            })
+        return data
     
     def get_featured_products(self, obj):
         from django.utils import timezone
@@ -360,10 +399,24 @@ class HomepageDataSerializer(serializers.Serializer):
             end_date__gte=now
         ).select_related('product__business').prefetch_related('product__images').order_by('position')[:12]
         
-        return [{
-            **ProductMarketplaceSerializer(fp.product, context=self.context).data,
-            'thumbnail_url': fp.product.images.filter(is_primary=True).first().thumbnail.url if fp.product.images.filter(is_primary=True).exists() else None
-        } for fp in featured]
+        results = []
+        for fp in featured:
+            thumb = None
+            primary = fp.product.images.filter(is_primary=True).first()
+            if primary and primary.original:
+                if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud':
+                    try:
+                        from apps.utils.storage_selector import get_image_url
+                        thumb = get_image_url(primary.original, size='thumbnail_medium') or primary.original.url
+                    except Exception:
+                        thumb = primary.original.url
+                else:
+                    thumb = getattr(getattr(primary, 'thumbnail', None), 'url', None) or primary.original.url
+            results.append({
+                **ProductMarketplaceSerializer(fp.product, context=self.context).data,
+                'thumbnail_url': thumb
+            })
+        return results
     
     def get_top_vendors(self, obj):
         # Get top-rated verified vendors
@@ -384,10 +437,24 @@ class HomepageDataSerializer(serializers.Serializer):
             is_active=True
         ).prefetch_related('images').order_by('-sales_count', '-created_at')[:12]
         
-        return [{
-            **ProductMarketplaceSerializer(product, context=self.context).data,
-            'thumbnail_url': product.images.filter(is_primary=True).first().thumbnail.url if product.images.filter(is_primary=True).exists() else None
-        } for product in trending]
+        results = []
+        for product in trending:
+            thumb = None
+            primary = product.images.filter(is_primary=True).first()
+            if primary and primary.original:
+                if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud':
+                    try:
+                        from apps.utils.storage_selector import get_image_url
+                        thumb = get_image_url(primary.original, size='thumbnail_medium') or primary.original.url
+                    except Exception:
+                        thumb = primary.original.url
+                else:
+                    thumb = getattr(getattr(primary, 'thumbnail', None), 'url', None) or primary.original.url
+            results.append({
+                **ProductMarketplaceSerializer(product, context=self.context).data,
+                'thumbnail_url': thumb
+            })
+        return results
 
     def get_categories(self, obj):
         # Get main categories with optimized images
@@ -396,14 +463,30 @@ class HomepageDataSerializer(serializers.Serializer):
             is_active=True
         ).prefetch_related('images').order_by('name')
         
-        return [{
-            'name': cat.name,
-            'slug': cat.slug,
-            'image': {
-                'url': cat.images.filter(is_feature=True).first().thumbnail_small.url if cat.images.filter(is_feature=True).exists() else None,
-                'alt_text': cat.images.filter(is_feature=True).first().alt_text if cat.images.filter(is_feature=True).exists() else cat.name
-            }
-        } for cat in categories]
+        output = []
+        for cat in categories:
+            featured_image = cat.images.filter(is_feature=True).first()
+            url = None
+            alt = cat.name
+            if featured_image and featured_image.original:
+                alt = featured_image.alt_text or cat.name
+                if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud':
+                    try:
+                        from apps.utils.storage_selector import get_image_url
+                        url = get_image_url(featured_image.original, size='thumbnail_small') or featured_image.original.url
+                    except Exception:
+                        url = featured_image.original.url
+                else:
+                    url = getattr(getattr(featured_image, 'thumbnail_small', None), 'url', None) or featured_image.original.url
+            output.append({
+                'name': cat.name,
+                'slug': cat.slug,
+                'image': {
+                    'url': url,
+                    'alt_text': alt
+                }
+            })
+        return output
 
 
 class WishlistSerializer(serializers.ModelSerializer):
@@ -588,19 +671,34 @@ class BannerSerializer(serializers.ModelSerializer):
         ]
     
     def get_thumbnail_small_url(self, obj):
-        if hasattr(obj, 'thumbnail_small') and obj.thumbnail_small:
-            return obj.thumbnail_small.url
-        return None
+        if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud' and obj.original:
+            try:
+                storage = obj.original.storage
+                if hasattr(storage, 'get_processed_url'):
+                    return storage.get_processed_url(obj.original.name, width=150, height=150, quality=80)
+            except Exception:
+                return obj.original.url
+        return obj.thumbnail_small.url if hasattr(obj, 'thumbnail_small') and obj.thumbnail_small else (obj.original.url if obj.original else None)
     
     def get_thumbnail_medium_url(self, obj):
-        if hasattr(obj, 'thumbnail_medium') and obj.thumbnail_medium:
-            return obj.thumbnail_medium.url
-        return None
+        if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud' and obj.original:
+            try:
+                storage = obj.original.storage
+                if hasattr(storage, 'get_processed_url'):
+                    return storage.get_processed_url(obj.original.name, width=300, height=200, quality=85)
+            except Exception:
+                return obj.original.url
+        return obj.thumbnail_medium.url if hasattr(obj, 'thumbnail_medium') and obj.thumbnail_medium else (obj.original.url if obj.original else None)
     
     def get_thumbnail_large_url(self, obj):
-        if hasattr(obj, 'thumbnail_large') and obj.thumbnail_large:
-            return obj.thumbnail_large.url
-        return None
+        if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud' and obj.original:
+            try:
+                storage = obj.original.storage
+                if hasattr(storage, 'get_processed_url'):
+                    return storage.get_processed_url(obj.original.name, width=600, height=300, quality=90)
+            except Exception:
+                return obj.original.url
+        return obj.thumbnail_large.url if hasattr(obj, 'thumbnail_large') and obj.thumbnail_large else (obj.original.url if obj.original else None)
 
 
 class CheckoutSessionSerializer(serializers.Serializer):

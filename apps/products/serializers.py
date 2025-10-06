@@ -42,10 +42,33 @@ class ProductReviewSerializer(serializers.ModelSerializer):
         return value
 
 class CategoryImageSerializer(serializers.ModelSerializer):
+    # Dynamic URL fields that work with both local and cloud storage
+    thumbnail_small = serializers.SerializerMethodField()
+    thumbnail_medium = serializers.SerializerMethodField()
+    thumbnail_large = serializers.SerializerMethodField()
+    original_url = serializers.SerializerMethodField()
+    
     class Meta:
         model = CategoryImage
-        fields = ['id', 'original', 'thumbnail_small', 'thumbnail_medium', 'thumbnail_large', 'alt_text', 'created_at']
+        fields = ['id', 'original', 'original_url', 'thumbnail_small', 'thumbnail_medium', 
+                  'thumbnail_large', 'alt_text', 'is_feature', 'created_at']
         read_only_fields = ['is_feature']
+    
+    def get_original_url(self, obj):
+        """Get URL for original image"""
+        return obj.original.url if obj.original else ''
+    
+    def get_thumbnail_small(self, obj):
+        """Get URL for small thumbnail"""
+        return obj.get_thumbnail_small_url()
+    
+    def get_thumbnail_medium(self, obj):
+        """Get URL for medium thumbnail"""
+        return obj.get_thumbnail_medium_url()
+    
+    def get_thumbnail_large(self, obj):
+        """Get URL for large thumbnail"""
+        return obj.get_thumbnail_large_url()
 
 class CategorySerializer(serializers.ModelSerializer):
     images = CategoryImageSerializer(many=True, read_only=True)
@@ -59,11 +82,26 @@ class CategorySerializer(serializers.ModelSerializer):
         read_only_fields = ['slug']
 
 class ProductImageSerializer(serializers.ModelSerializer):
-    thumbnail = serializers.ImageField(read_only=True)
-    medium = serializers.ImageField(read_only=True)
+    # Dynamic URL fields that work with both local and cloud storage
+    thumbnail = serializers.SerializerMethodField()
+    medium = serializers.SerializerMethodField()
+    original_url = serializers.SerializerMethodField()
+    
     class Meta:
         model = ProductImage
-        fields = ['id', 'original', 'thumbnail', 'medium', 'is_primary', 'created_at']
+        fields = ['id', 'original', 'original_url', 'thumbnail', 'medium', 'is_primary', 'created_at']
+    
+    def get_original_url(self, obj):
+        """Get URL for original image"""
+        return obj.original.url if obj.original else ''
+    
+    def get_thumbnail(self, obj):
+        """Get URL for thumbnail"""
+        return obj.get_thumbnail_url()
+    
+    def get_medium(self, obj):
+        """Get URL for medium size"""
+        return obj.get_medium_url()
 
 
 class ReviewSerializer(serializers.ModelSerializer):
