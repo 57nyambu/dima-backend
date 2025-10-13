@@ -283,7 +283,8 @@ class SearchService:
         ).prefetch_related('images', 'reviews')
         
         # Text search
-        if query:
+        if query and query.strip():
+            query = query.strip()
             # Use PostgreSQL full-text search if available
             try:
                 search_vector = SearchVector('name', weight='A') + \
@@ -299,12 +300,20 @@ class SearchService:
                 products = products.filter(
                     Q(name__icontains=query) |
                     Q(description__icontains=query) |
-                    Q(business__name__icontains=query)
+                    Q(business__name__icontains=query) |
+                    Q(category__name__icontains=query)
                 )
         
         # Apply filters
         if filters.get('category'):
-            products = products.filter(category_id=filters['category'])
+            # Support both category ID and slug
+            category_value = filters['category']
+            try:
+                # Try as ID first
+                products = products.filter(category_id=int(category_value))
+            except (ValueError, TypeError):
+                # Try as slug
+                products = products.filter(Q(category__slug=category_value) | Q(category__name__iexact=category_value))
         
         if filters.get('business'):
             products = products.filter(business_id=filters['business'])

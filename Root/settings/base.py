@@ -173,12 +173,10 @@ else:
 
 if STORAGE_BACKEND == 'cloud':
     # Cloud Media Storage Configuration
-    # IMPORTANT: Store only paths in DB, not full URLs
-    # Keep MEDIA_URL local to avoid interfering with Django's static/serve helper
     MEDIA_URL = '/media/'
     MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-    # Cloud Storage Settings - Centralized Configuration (use .env CLOUD_STORAGE_URL)
+    # Cloud Storage Settings
     _CLOUD_BASE = CLOUD_STORAGE_URL.rstrip('/')
     CLOUD_MEDIA_SERVER = {
         'BASE_URL': _CLOUD_BASE,
@@ -187,14 +185,14 @@ if STORAGE_BACKEND == 'cloud':
         'PROCESS_ENDPOINT': f"{_CLOUD_BASE}/process/",
         'ORIGINAL_PATH': '/qazsw/',
         'SUPPORTED_FORMATS': ['jpeg', 'jpg', 'png', 'webp', 'gif', 'bmp', 'tiff'],
-        'MAX_FILE_SIZE': 52428800,  # 50MB as per guide
-        'MAX_DIMENSION': 4000,  # Max width/height
-        'TIMEOUT': 30,  # Request timeout in seconds
-        'RETRY_ATTEMPTS': 3,  # Number of retry attempts for failed uploads
-        'RETRY_DELAY': 1,  # Initial retry delay in seconds (exponential backoff)
+        'MAX_FILE_SIZE': 52428800,  # 50MB
+        'MAX_DIMENSION': 4000,
+        'TIMEOUT': 30,
+        'RETRY_ATTEMPTS': 3,
+        'RETRY_DELAY': 1,
     }
 
-    # Thumbnail/Processed Image Settings (using cloud server processing)
+    # Image Size Presets
     CLOUD_IMAGE_SIZES = {
         'thumbnail_small': {'width': 150, 'height': 150, 'quality': 80},
         'thumbnail_medium': {'width': 300, 'height': 300, 'quality': 85},
@@ -203,10 +201,10 @@ if STORAGE_BACKEND == 'cloud':
         'large': {'width': 1920, 'height': 1920, 'quality': 95},
     }
 
-    # Use cloud storage as the default file storage so ImageFields use it automatically
+    # Use cloud storage as default
     DEFAULT_FILE_STORAGE = 'apps.utils.storage.CloudImageStorage'
 else:
-    # Local Media Storage Configuration (Default)
+    # Local Media Storage
     MEDIA_URL = '/media/'
     MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 

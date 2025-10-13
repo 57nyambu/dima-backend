@@ -55,12 +55,24 @@ class VendorSummarySerializer(serializers.ModelSerializer):
 
 class ProductImageSerializer(serializers.ModelSerializer):
     """Product images with different sizes"""
+    original = serializers.SerializerMethodField()
     thumbnail_url = serializers.SerializerMethodField()
     medium_url = serializers.SerializerMethodField()
     
     class Meta:
         model = ProductImage
         fields = ['id', 'original', 'thumbnail_url', 'medium_url', 'is_primary']
+
+    def get_original(self, obj):
+        if not obj or not obj.original:
+            return None
+        if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud':
+            try:
+                from apps.utils.storage_selector import get_original_image_url
+                return get_original_image_url(obj.original)
+            except Exception:
+                return obj.original.url
+        return self.context['request'].build_absolute_uri(obj.original.url) if 'request' in self.context else obj.original.url
     
     def get_thumbnail_url(self, obj):
         # 300x300 in our config

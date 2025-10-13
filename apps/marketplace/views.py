@@ -159,6 +159,9 @@ def search_products(request):
         page = int(request.query_params.get('page', 1))
         per_page = int(request.query_params.get('per_page', 24))
         
+        # Log search request for debugging
+        logger.info(f"Search request - Query: '{query}', Page: {page}, Params: {dict(request.query_params)}")
+        
         # Validate pagination parameters
         if page < 1:
             page = 1
@@ -167,7 +170,7 @@ def search_products(request):
         
         filters = {
             'category': request.query_params.get('category'),
-            'business': request.query_params.get('business'),
+            'business': request.query_params.get('business') or request.query_params.get('vendor'),  # Support both
             'price_min': request.query_params.get('price_min'),
             'price_max': request.query_params.get('price_max'),
             'min_rating': request.query_params.get('min_rating'),
@@ -189,6 +192,9 @@ def search_products(request):
                     clean_filters[k] = v
         
         results = SearchService.search_products(query, clean_filters, page, per_page)
+        
+        # Log results count
+        logger.info(f"Search results - Total: {results['total_count']}, Page products: {len(results['products'])}")
 
         # IMPORTANT: Pass queryset objects directly so nested ProductMarketplaceSerializer
         # receives model instances (previous code passed already serialized dicts,

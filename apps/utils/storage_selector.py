@@ -122,16 +122,16 @@ def get_image_url(file_field, size=None, format=None):
     
     storage_backend = getattr(settings, 'STORAGE_BACKEND', 'local')
     
-    if storage_backend == 'cloud' and size:
+    if storage_backend == 'cloud':
         try:
-            # Get size configuration
-            sizes = settings.CLOUD_IMAGE_SIZES
-            if size in sizes:
-                size_config = sizes[size]
+            storage = getattr(file_field, 'storage', None)
+            
+            if size:
+                # Get size configuration
+                sizes = settings.CLOUD_IMAGE_SIZES
+                size_config = sizes.get(size, {})
                 
-                # Get storage instance
-                storage = file_field.storage
-                if hasattr(storage, 'get_processed_url'):
+                if size_config and storage and hasattr(storage, 'get_processed_url'):
                     return storage.get_processed_url(
                         file_field.name,
                         width=size_config.get('width'),
@@ -139,8 +139,35 @@ def get_image_url(file_field, size=None, format=None):
                         quality=size_config.get('quality'),
                         format=format
                     )
+            
+            # No size or no storage method - return original
+            base = settings.CLOUD_MEDIA_SERVER['BASE_URL'].rstrip('/')
+            clean = file_field.name.lstrip('/')
+            return f"{base}/qazsw/{clean}"
+            
         except Exception as e:
-            logger.error(f"Error generating processed URL: {e}")
+            logger.error(f"Error generating cloud URL: {e}")
     
-    # Fallback to standard URL
+    # Fallback to standard URL for local storage
     return file_field.url if file_field else ''
+
+
+def get_original_image_url(file_field):
+    """
+    Return original image URL respecting cloud setup
+    """
+    if not file_field:
+        return ''
+    
+    storage_backend = getattr(settings, 'STORAGE_BACKEND', 'local')
+    
+    if storage_backend == 'cloud':
+        try:
+            base = settings.CLOUD_MEDIA_SERVER['BASE_URL'].rstrip('/')
+            clean = file_field.name.lstrip('/')
+            return f"{base}/qazsw/{clean}"
+        except Exception as e:
+            logger.error(f"Error generating original cloud URL: {e}")
+            return file_field.url
+    
+    return file_field.url

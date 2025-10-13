@@ -21,8 +21,8 @@ class CategoryImageAdmin(admin.ModelAdmin):
         url = ''
         if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud':
             try:
-                from apps.utils.storage_selector import get_image_url
-                url = get_image_url(obj.original, size='thumbnail_small') or obj.original.url
+                from apps.utils.storage_selector import get_image_url, get_original_image_url
+                url = get_image_url(obj.original, size='thumbnail_small') or get_original_image_url(obj.original)
             except Exception:
                 url = obj.original.url
         else:

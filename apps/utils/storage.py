@@ -14,13 +14,12 @@ logger = logging.getLogger('storage')
 @deconstructible
 class CloudImageStorage(Storage):
     """
-    Custom storage backend for Dima Image Server
+    Django storage backend for cloud image server
     
-    Following the integration guide from BACKEND_INTEGRATION.md:
-    - Upload images to /qazsw-upload/
-    - Store only paths in database (e.g., "2025/10/03/abc123def456.jpg")
-    - Generate URLs dynamically for originals and processed versions
-    - Handle automatic deduplication via file hash
+    Simple integration:
+    - Uploads images to /qazsw-upload/
+    - Stores paths in database (e.g., "products/nike-air-max/main.jpg")
+    - Generates URLs dynamically for originals and processed versions
     """
     
     def __init__(self):
@@ -28,8 +27,6 @@ class CloudImageStorage(Storage):
         self.base_url = self.config['BASE_URL']
         self.upload_endpoint = self.config['UPLOAD_ENDPOINT']
         self.delete_endpoint = self.config['DELETE_ENDPOINT']
-        self.process_endpoint = self.config['PROCESS_ENDPOINT']
-        self.original_path = self.config['ORIGINAL_PATH']
         self.timeout = self.config.get('TIMEOUT', 30)
         self.retry_attempts = self.config.get('RETRY_ATTEMPTS', 3)
         self.retry_delay = self.config.get('RETRY_DELAY', 1)
@@ -59,35 +56,18 @@ class CloudImageStorage(Storage):
         """
         Save file to cloud server
         
-        CRITICAL: Returns ONLY the path (e.g., "2025/10/03/abc123.jpg")
-        NOT the full URL. Store this path in your database.
+        Returns: path to store in database (e.g., "products/nike-air-max/main.jpg")
         """
-        self._log(f"Starting upload for: {name}")
+        self._log(f"Uploading file: {name}")
         
         try:
-            # Read content
-            if hasattr(content, 'read'):
-                content.seek(0)  # Reset file pointer
-                file_content = content.read()
-            else:
-                file_content = content
+            # Reset file pointer
+            if hasattr(content, 'seek'):
+                content.seek(0)
             
-            # Validate file size
-            file_size = len(file_content)
-            max_size = self.config.get('MAX_FILE_SIZE', 52428800)
-            if file_size > max_size:
-                raise ValueError(f"File size {file_size} exceeds maximum {max_size} bytes")
-            
-            self._log(f"File size: {file_size} bytes")
-            
-            # Prepare upload - use simple filename, server will organize by date
-            # Extract just the filename without any path
-            simple_name = os.path.basename(name)
-            
-            files = {'file': (simple_name, file_content)}
-            data = {'path': simple_name}  # Server will add date-based path
-            
-            self._log(f"Uploading to: {self.upload_endpoint}")
+            # Prepare upload - pass full path
+            files = {'file': content}
+            data = {'path': name}
             
             # Upload with retry logic
             def upload():
@@ -101,27 +81,16 @@ class CloudImageStorage(Storage):
                 return response
             
             response = self._retry_request(upload)
+            result = response.json()
             
-            if response.status_code == 200:
-                result = response.json()
-                stored_path = result.get('path')
-                file_status = result.get('status', 'uploaded')
-                file_hash = result.get('hash', '')
+            stored_path = result.get('path')
+            self._log(f"Upload successful: {stored_path}")
+            
+            # Return path to store in database
+            return stored_path
                 
-                self._log(f"Upload successful - Status: {file_status}, Path: {stored_path}, Hash: {file_hash}")
-                
-                # IMPORTANT: Return ONLY the path, not full URL
-                return stored_path
-            else:
-                error_msg = f"Upload failed with status {response.status_code}: {response.text}"
-                self._log(error_msg, 'error')
-                raise Exception(error_msg)
-                
-        except requests.RequestException as e:
-            self._log(f"Network error uploading {name}: {str(e)}", 'error')
-            raise
         except Exception as e:
-            self._log(f"Error uploading {name}: {str(e)}", 'error')
+            self._log(f"Upload failed for {name}: {str(e)}", 'error')
             raise
     
     def _open(self, name, mode='rb'):
@@ -189,18 +158,13 @@ class CloudImageStorage(Storage):
         """
         Return URL for accessing the ORIGINAL file
         
-        Format: https://files.dima.co.ke/qazsw/2025/10/03/abc123.jpg
+        Format: https://files.dima.co.ke/qazsw/products/nike-air-max/main.jpg
         """
         if not name:
             return ''
         
-        # Ensure name doesn't start with /
         clean_name = name.lstrip('/')
-        
-        # Construct URL using original path
-        full_url = urljoin(self.base_url + self.original_path, clean_name)
-        self._log(f"Generated URL for {name}: {full_url}")
-        return full_url
+        return f"{self.base_url}/qazsw/{clean_name}"
     
     def size(self, name):
         """
@@ -219,22 +183,22 @@ class CloudImageStorage(Storage):
         """
         Generate URL for processed/resized image
         
-        This is the KEY method for thumbnails and different sizes
+        Args:
+            name: Image path (e.g., 'products/nike-air-max/main.jpg')
+            width: Target width in pixels
+            height: Target height in pixels
+            quality: Quality 10-100
+            format: Output format ('jpeg', 'webp', 'avif')
         
-        Usage:
-            storage.get_processed_url(path, width=300, height=300)  # Thumbnail
-            storage.get_processed_url(path, width=800)  # Medium (preserves aspect)
-            storage.get_processed_url(path, width=800, format='webp')  # WebP format
-        
-        Returns: https://files.dima.co.ke/process/2025/10/03/abc123.jpg?w=300&h=300
+        Returns: 
+            https://files.dima.co.ke/process/products/nike-air-max/main.jpg?w=300&f=webp
         """
         if not name:
             return ''
         
         clean_name = name.lstrip('/')
-        base_url = urljoin(self.process_endpoint, clean_name)
         
-        # Build query parameters using short names as per guide
+        # Build query parameters
         params = []
         if width:
             params.append(f"w={width}")
@@ -245,23 +209,16 @@ class CloudImageStorage(Storage):
         if format:
             params.append(f"f={format}")
         
-        if params:
-            full_url = f"{base_url}?{'&'.join(params)}"
-        else:
-            full_url = base_url
-        
-        self._log(f"Generated processed URL: {full_url}")
-        return full_url
+        url = f"{self.base_url}/process/{clean_name}"
+        return f"{url}?{'&'.join(params)}" if params else url
 
 
 def generate_cloud_path(instance, filename):
     """
-    Generate simple filename for cloud upload
+    Generate path for cloud upload
     
-    IMPORTANT: Don't create complex paths here!
-    The cloud server organizes files by date automatically (YYYY/MM/DD)
-    
-    Just generate a unique filename with proper extension
+    Returns simple path like: 'products/nike-air-max/main.jpg'
+    Server will handle the rest.
     """
     import uuid
     from django.utils.text import slugify
@@ -275,9 +232,20 @@ def generate_cloud_path(instance, filename):
     if ext.lstrip('.') not in supported:
         logger.warning(f"Unsupported format: {ext}. Supported: {supported}")
     
-    # Generate unique filename with hash
-    # Format: slugified-name-hash.ext
-    unique_filename = f"{slugify(name)[:50]}-{uuid.uuid4().hex[:12]}{ext}"
+    # Generate clean filename
+    clean_name = f"{slugify(name)[:50]}-{uuid.uuid4().hex[:8]}{ext}"
     
-    logger.debug(f"Generated filename: {unique_filename}")
-    return unique_filename
+    # Determine prefix based on instance type
+    if hasattr(instance, 'product'):
+        # ProductImage
+        prefix = f"products/{instance.product.slug}"
+    elif hasattr(instance, 'category'):
+        # CategoryImage
+        prefix = f"categories/{instance.category.slug}"
+    else:
+        # Generic fallback
+        prefix = "uploads"
+    
+    path = f"{prefix}/{clean_name}"
+    logger.debug(f"Generated cloud path: {path}")
+    return path
