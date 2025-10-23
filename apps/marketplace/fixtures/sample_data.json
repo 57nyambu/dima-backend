@@ -8,9 +8,7 @@
       "currency": "KES",
       "tax_rate": "16.00",
       "min_order_amount": "100.00",
-      "enable_reviews": true,
-      "enable_wishlist": true,
-      "enable_comparison": true
+      "enable_reviews": true
     }
   },
   {

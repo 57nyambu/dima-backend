@@ -8,9 +8,8 @@ from apps.business.models import Business, BusinessReview
 from apps.orders.models import Order
 #from apps.shipping.models import ShippingOption
 from .models import (
-    Cart, CartItem, Wishlist, WishlistItem, Banner, 
-    FeaturedProduct, Banner, MarketplaceDispute,
-    ProductComparison, MarketplaceNotification, DisputeMessage
+    Banner, FeaturedProduct, MarketplaceDispute,
+    MarketplaceNotification, DisputeMessage
 )
 
 
@@ -53,6 +52,26 @@ class VendorSummarySerializer(serializers.ModelSerializer):
         return "2-4 hours"
 
 
+class VendorHomepageSerializer(serializers.ModelSerializer):
+    """Simplified vendor info for homepage - only name, orders completed, and rating"""
+    avg_rating = serializers.SerializerMethodField()
+    orders_completed = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Business
+        fields = ['id', 'name', 'slug', 'avg_rating', 'orders_completed']
+    
+    def get_avg_rating(self, obj):
+        if hasattr(obj, 'avg_rating') and obj.avg_rating:
+            return round(obj.avg_rating, 2)
+        return 0.0
+    
+    def get_orders_completed(self, obj):
+        if hasattr(obj, 'orders_completed'):
+            return obj.orders_completed
+        return Order.objects.filter(business=obj, status='delivered').count()
+
+
 class ProductImageSerializer(serializers.ModelSerializer):
     """Product images with different sizes"""
     original = serializers.SerializerMethodField()
@@ -70,30 +89,38 @@ class ProductImageSerializer(serializers.ModelSerializer):
             try:
                 from apps.utils.storage_selector import get_original_image_url
                 return get_original_image_url(obj.original)
-            except Exception:
-                return obj.original.url
+            except Exception as e:
+                import logging
+                logging.getLogger('storage').error(f"Error generating original URL: {e}")
+                return None
         return self.context['request'].build_absolute_uri(obj.original.url) if 'request' in self.context else obj.original.url
     
     def get_thumbnail_url(self, obj):
-        # 300x300 in our config
+        # 300x300 WebP for product listings - Perfect for cards/grids
         if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud':
             try:
                 from apps.utils.storage_selector import get_image_url
-                return get_image_url(obj.original, size='thumbnail_medium') if obj.original else None
-            except Exception:
-                return obj.original.url if obj.original else None
+                # Use thumbnail_medium (300x300) with WebP format
+                return get_image_url(obj.original, size='thumbnail_medium', format='webp') if obj.original else None
+            except Exception as e:
+                import logging
+                logging.getLogger('storage').error(f"Error generating thumbnail URL: {e}")
+                return None
         # Local: use ImageKit if available
         thumb = getattr(obj, 'thumbnail', None)
         return self.context['request'].build_absolute_uri(thumb.url) if thumb else (self.context['request'].build_absolute_uri(obj.original.url) if obj.original else None)
     
     def get_medium_url(self, obj):
-        # 600x600 in our config
+        # 800x800 WebP for product detail pages
         if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud':
             try:
                 from apps.utils.storage_selector import get_image_url
-                return get_image_url(obj.original, size='thumbnail_large') if obj.original else None
-            except Exception:
-                return obj.original.url if obj.original else None
+                # Use medium (800x800) with WebP format for detail views
+                return get_image_url(obj.original, size='medium', format='webp') if obj.original else None
+            except Exception as e:
+                import logging
+                logging.getLogger('storage').error(f"Error generating medium URL: {e}")
+                return None
         med = getattr(obj, 'medium', None)
         return self.context['request'].build_absolute_uri(med.url) if med else (self.context['request'].build_absolute_uri(obj.original.url) if obj.original else None)
 
@@ -127,10 +154,6 @@ class ProductMarketplaceSerializer(serializers.ModelSerializer):
     # Shipping info
     shipping_options = serializers.SerializerMethodField()
     
-    # User-specific fields (require authentication)
-    is_in_wishlist = serializers.SerializerMethodField()
-    is_in_cart = serializers.SerializerMethodField()
-    
     class Meta:
         model = Product
         fields = [
@@ -139,7 +162,7 @@ class ProductMarketplaceSerializer(serializers.ModelSerializer):
             'is_active', 'is_feature', 'created_at', 'updated_at',
             'vendor', 'images', 'primary_image', 'category_breadcrumb',
             'avg_rating', 'review_count', 'in_stock', 'low_stock',
-            'shipping_options', 'is_in_wishlist', 'is_in_cart'
+            'shipping_options'
         ]
     
     def get_primary_image(self, obj):
@@ -188,18 +211,6 @@ class ProductMarketplaceSerializer(serializers.ModelSerializer):
                 'id', 'name', 'price', 'estimated_days'
             )
         return []
-    
-    def get_is_in_wishlist(self, obj):
-        request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            return obj.wishlist_items.filter(wishlist__user=request.user).exists()
-        return False
-    
-    def get_is_in_cart(self, obj):
-        request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            return obj.cart_items.filter(cart__user=request.user).exists()
-        return False
 
 
 class VendorDetailSerializer(serializers.ModelSerializer):
@@ -254,44 +265,6 @@ class VendorDetailSerializer(serializers.ModelSerializer):
         }
 
 
-class CartItemSerializer(serializers.ModelSerializer):
-    """Cart items with product details"""
-    product = ProductMarketplaceSerializer(read_only=True)
-    subtotal = serializers.ReadOnlyField()
-    
-    class Meta:
-        model = CartItem
-        fields = ['id', 'product', 'quantity', 'subtotal', 'created_at']
-
-
-class CartSerializer(serializers.ModelSerializer):
-    """Shopping cart with items grouped by vendor"""
-    items = CartItemSerializer(many=True, read_only=True)
-    total_amount = serializers.ReadOnlyField()
-    total_items = serializers.ReadOnlyField()
-    vendors_summary = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = Cart
-        fields = ['id', 'items', 'total_amount', 'total_items', 'vendors_summary', 'updated_at']
-    
-    def get_vendors_summary(self, obj):
-        """Group cart items by vendor"""
-        vendors = {}
-        for item in obj.items.all():
-            vendor_id = item.product.business.id
-            if vendor_id not in vendors:
-                vendors[vendor_id] = {
-                    'vendor': VendorSummarySerializer(item.product.business).data,
-                    'items': [],
-                    'vendor_total': 0
-                }
-            vendors[vendor_id]['items'].append(CartItemSerializer(item).data)
-            vendors[vendor_id]['vendor_total'] += item.subtotal
-        
-        return list(vendors.values())
-
-
 class OrderMarketplaceSerializer(serializers.ModelSerializer):
     """Buyer-friendly order information"""
     vendor = VendorSummarySerializer(source='business', read_only=True)
@@ -303,7 +276,7 @@ class OrderMarketplaceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = [
-            'id', 'order_number', 'status', 'total_amount', 'created_at',
+            'id', 'order_number', 'status', 'total', 'created_at',
             'vendor', 'items_summary', 'shipping_info', 'payment_info', 
             'tracking_info'
         ]
@@ -361,12 +334,23 @@ class CategoryListSerializer(serializers.ModelSerializer):
             'alt_text': featured_image.alt_text or obj.name
         }
 
+
+class CategoryHomepageSerializer(serializers.ModelSerializer):
+    """Simplified category serializer for homepage - NO IMAGES"""
+    product_count = serializers.IntegerField(read_only=True)
+    
+    class Meta:
+        model = Category
+        fields = ['id', 'name', 'slug', 'description', 'product_count']
+
+
 class HomepageDataSerializer(serializers.Serializer):
-    """Aggregated homepage data"""
+    """Aggregated homepage data - New structure with products tagged and all vendors ranked"""
     banners = serializers.SerializerMethodField()
-    featured_products = serializers.SerializerMethodField()
-    top_vendors = serializers.SerializerMethodField()
-    trending_products = serializers.SerializerMethodField()
+    categories = serializers.SerializerMethodField()
+    vendors = serializers.SerializerMethodField()
+    products = serializers.SerializerMethodField()
+    pagination = serializers.SerializerMethodField()
     
     def get_banners(self, obj):
         from django.utils import timezone
@@ -402,151 +386,43 @@ class HomepageDataSerializer(serializers.Serializer):
             })
         return data
     
-    def get_featured_products(self, obj):
-        from django.utils import timezone
-        now = timezone.now()
-        featured = FeaturedProduct.objects.filter(
-            is_active=True,
-            start_date__lte=now,
-            end_date__gte=now
-        ).select_related('product__business').prefetch_related('product__images').order_by('position')[:12]
-        
-        results = []
-        for fp in featured:
-            thumb = None
-            primary = fp.product.images.filter(is_primary=True).first()
-            if primary and primary.original:
-                if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud':
-                    try:
-                        from apps.utils.storage_selector import get_image_url
-                        thumb = get_image_url(primary.original, size='thumbnail_medium') or primary.original.url
-                    except Exception:
-                        thumb = primary.original.url
-                else:
-                    thumb = getattr(getattr(primary, 'thumbnail', None), 'url', None) or primary.original.url
-            results.append({
-                **ProductMarketplaceSerializer(fp.product, context=self.context).data,
-                'thumbnail_url': thumb
-            })
-        return results
-    
-    def get_top_vendors(self, obj):
-        # Get top-rated verified vendors
-        top_vendors = Business.objects.filter(
-            is_verified=True
-        ).annotate(
-            avg_rating=Avg('reviews__rating'),
-            review_count=Count('reviews')
-        ).filter(
-            review_count__gte=5
-        ).order_by('-avg_rating', '-review_count')[:8]
-        
-        return [VendorSummarySerializer(vendor).data for vendor in top_vendors]
-    
-    def get_trending_products(self, obj):
-        # Get products with high recent sales
-        trending = Product.objects.filter(
-            is_active=True
-        ).prefetch_related('images').order_by('-sales_count', '-created_at')[:12]
-        
-        results = []
-        for product in trending:
-            thumb = None
-            primary = product.images.filter(is_primary=True).first()
-            if primary and primary.original:
-                if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud':
-                    try:
-                        from apps.utils.storage_selector import get_image_url
-                        thumb = get_image_url(primary.original, size='thumbnail_medium') or primary.original.url
-                    except Exception:
-                        thumb = primary.original.url
-                else:
-                    thumb = getattr(getattr(primary, 'thumbnail', None), 'url', None) or primary.original.url
-            results.append({
-                **ProductMarketplaceSerializer(product, context=self.context).data,
-                'thumbnail_url': thumb
-            })
-        return results
-
     def get_categories(self, obj):
-        # Get main categories with optimized images
-        categories = Category.objects.filter(
-            parent=None,
-            is_active=True
-        ).prefetch_related('images').order_by('name')
+        """Get main categories WITHOUT images"""
+        categories_data = obj.get('categories', [])
+        return CategoryHomepageSerializer(categories_data, many=True).data
+    
+    def get_vendors(self, obj):
+        """Get all vendors ranked by rating"""
+        vendors_data = obj.get('vendors', [])
+        return VendorHomepageSerializer(vendors_data, many=True).data
+    
+    def get_products(self, obj):
+        """Get products with tags (featured, trending, etc.)"""
+        products_data = obj.get('products', [])
         
-        output = []
-        for cat in categories:
-            featured_image = cat.images.filter(is_feature=True).first()
-            url = None
-            alt = cat.name
-            if featured_image and featured_image.original:
-                alt = featured_image.alt_text or cat.name
-                if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud':
-                    try:
-                        from apps.utils.storage_selector import get_image_url
-                        url = get_image_url(featured_image.original, size='thumbnail_small') or featured_image.original.url
-                    except Exception:
-                        url = featured_image.original.url
-                else:
-                    url = getattr(getattr(featured_image, 'thumbnail_small', None), 'url', None) or featured_image.original.url
-            output.append({
-                'name': cat.name,
-                'slug': cat.slug,
-                'image': {
-                    'url': url,
-                    'alt_text': alt
-                }
-            })
-        return output
-
-
-class WishlistSerializer(serializers.ModelSerializer):
-    """User wishlist with products"""
-    items = serializers.SerializerMethodField()
-    total_items = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = Wishlist
-        fields = ['id', 'items', 'total_items', 'updated_at']
-    
-    def get_items(self, obj):
-        items = obj.items.select_related('product__business').order_by('-created_at')
-        return [{
-            'id': item.id,
-            'product': ProductMarketplaceSerializer(item.product, context=self.context).data,
-            'added_at': item.created_at
-        } for item in items]
-    
-    def get_total_items(self, obj):
-        return obj.items.count()
-
-
-class ProductComparisonSerializer(serializers.ModelSerializer):
-    """Product comparison with detailed specs"""
-    products = ProductMarketplaceSerializer(many=True, read_only=True)
-    comparison_matrix = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = ProductComparison
-        fields = ['id', 'name', 'products', 'comparison_matrix', 'created_at']
-    
-    def get_comparison_matrix(self, obj):
-        """Create comparison matrix for key attributes"""
-        products = obj.products.all()
-        if not products:
-            return {}
+        # Add product serialization with tags
+        results = []
+        for product_item in products_data:
+            product = product_item['product']
+            product_data = ProductMarketplaceSerializer(product, context=self.context).data
+            
+            # Add tags - use correct keys from service layer
+            product_data['tags'] = {
+                'featured': product_item.get('is_featured', False),
+                'trending': product_item.get('is_trending', False),
+                'new': product_item.get('is_new', False),
+            }
+            
+            results.append(product_data)
         
-        matrix = {
-            'price': [p.price for p in products],
-            'discounted_price': [p.discounted_price for p in products],
-            'rating': [p.reviews.aggregate(avg=Avg('rating'))['avg'] or 0 for p in products],
-            'reviews': [p.reviews.count() for p in products],
-            'stock': [p.stock_qty for p in products],
-            'vendor_rating': [p.business.reviews.aggregate(avg=Avg('rating'))['avg'] or 0 for p in products],
-            'vendor_verified': [p.business.is_verified for p in products]
+        return results
+    
+    def get_pagination(self, obj):
+        """Return pagination info"""
+        return {
+            'products': obj.get('products_pagination', {}),
+            'vendors': obj.get('vendors_pagination', {})
         }
-        return matrix
 
 
 class DisputeMessageSerializer(serializers.ModelSerializer):
@@ -687,9 +563,12 @@ class BannerSerializer(serializers.ModelSerializer):
             try:
                 storage = obj.original.storage
                 if hasattr(storage, 'get_processed_url'):
-                    return storage.get_processed_url(obj.original.name, width=150, height=150, quality=80)
-            except Exception:
-                return obj.original.url
+                    # 150x150 WebP for small banner thumbnails
+                    return storage.get_processed_url(obj.original.name, width=150, height=150, quality=80, format='webp')
+            except Exception as e:
+                import logging
+                logging.getLogger('storage').error(f"Error generating banner small URL: {e}")
+                return None
         return obj.thumbnail_small.url if hasattr(obj, 'thumbnail_small') and obj.thumbnail_small else (obj.original.url if obj.original else None)
     
     def get_thumbnail_medium_url(self, obj):
@@ -697,9 +576,12 @@ class BannerSerializer(serializers.ModelSerializer):
             try:
                 storage = obj.original.storage
                 if hasattr(storage, 'get_processed_url'):
-                    return storage.get_processed_url(obj.original.name, width=300, height=200, quality=85)
-            except Exception:
-                return obj.original.url
+                    # 800x400 WebP for medium banner displays
+                    return storage.get_processed_url(obj.original.name, width=800, height=400, quality=85, format='webp')
+            except Exception as e:
+                import logging
+                logging.getLogger('storage').error(f"Error generating banner medium URL: {e}")
+                return None
         return obj.thumbnail_medium.url if hasattr(obj, 'thumbnail_medium') and obj.thumbnail_medium else (obj.original.url if obj.original else None)
     
     def get_thumbnail_large_url(self, obj):
@@ -707,68 +589,120 @@ class BannerSerializer(serializers.ModelSerializer):
             try:
                 storage = obj.original.storage
                 if hasattr(storage, 'get_processed_url'):
-                    return storage.get_processed_url(obj.original.name, width=600, height=300, quality=90)
-            except Exception:
-                return obj.original.url
+                    # 1920x600 WebP for large banner displays (hero banners)
+                    return storage.get_processed_url(obj.original.name, width=1920, height=600, quality=90, format='webp')
+            except Exception as e:
+                import logging
+                logging.getLogger('storage').error(f"Error generating banner large URL: {e}")
+                return None
         return obj.thumbnail_large.url if hasattr(obj, 'thumbnail_large') and obj.thumbnail_large else (obj.original.url if obj.original else None)
 
 
-class CheckoutSessionSerializer(serializers.Serializer):
-    """Checkout session data"""
-    cart_summary = CartSerializer()
-    shipping_options = serializers.SerializerMethodField()
-    payment_methods = serializers.SerializerMethodField()
-    order_summary = serializers.SerializerMethodField()
+class CheckoutItemSerializer(serializers.Serializer):
+    """Serializer for individual cart items from frontend"""
+    product_id = serializers.IntegerField()
+    quantity = serializers.IntegerField(min_value=1)
+    price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     
-    def get_shipping_options(self, obj):
-        """Available shipping options for all vendors in cart"""
-        cart = obj['cart']
-        vendors = cart.vendors
-        
-        shipping_options = {}
-        for vendor in vendors:
-            if hasattr(vendor, 'shipping_options'):
-                options = vendor.shipping_options.filter(is_active=True)
-                shipping_options[vendor.id] = [{
-                    'id': opt.id,
-                    'name': opt.name,
-                    'price': opt.price,
-                    'estimated_days': opt.estimated_days,
-                    'description': opt.description
-                } for opt in options]
-        
-        return shipping_options
+    def validate_product_id(self, value):
+        """Validate that product exists and is active"""
+        try:
+            product = Product.objects.get(id=value, is_active=True)
+            return value
+        except Product.DoesNotExist:
+            raise serializers.ValidationError(f"Product with ID {value} not found or inactive")
     
-    def get_payment_methods(self, obj):
-        """Available payment methods"""
-        return [
-            {'id': 'mpesa', 'name': 'M-Pesa', 'icon': 'mpesa.png'},
-            {'id': 'airtel', 'name': 'Airtel Money', 'icon': 'airtel.png'},
-            {'id': 'card', 'name': 'Credit/Debit Card', 'icon': 'card.png'},
-        ]
+    def validate(self, data):
+        """Validate stock availability"""
+        try:
+            product = Product.objects.get(id=data['product_id'])
+            if product.stock_qty < data['quantity']:
+                raise serializers.ValidationError({
+                    'quantity': f"Insufficient stock. Only {product.stock_qty} available for {product.name}"
+                })
+            data['price'] = product.discounted_price if product.discounted_price > 0 else product.price
+        except Product.DoesNotExist:
+            raise serializers.ValidationError("Product not found")
+        
+        return data
+
+
+class CheckoutSerializer(serializers.Serializer):
+    """Serializer for checkout process - receives cart from frontend"""
+    items = CheckoutItemSerializer(many=True)
     
-    def get_order_summary(self, obj):
-        """Calculate order totals"""
-        cart = obj['cart']
-        subtotal = cart.total_amount
+    # Shipping details
+    shipping_address = serializers.CharField(max_length=500)
+    shipping_city = serializers.CharField(max_length=100)
+    shipping_county = serializers.CharField(max_length=100)
+    shipping_phone = serializers.CharField(max_length=15)
+    shipping_notes = serializers.CharField(max_length=500, required=False, allow_blank=True)
+    
+    # Payment details
+    payment_method = serializers.ChoiceField(
+        choices=['mpesa', 'airtel_money', 'card'],
+        default='mpesa'
+    )
+    mpesa_phone = serializers.CharField(max_length=13, required=False)
+    
+    def validate_items(self, value):
+        """Ensure cart is not empty"""
+        if not value:
+            raise serializers.ValidationError("Cart cannot be empty")
+        if len(value) > 50:  # Max items per order
+            raise serializers.ValidationError("Maximum 50 items allowed per order")
+        return value
+    
+    def validate_mpesa_phone(self, value):
+        """Validate Kenyan phone number format"""
+        if value:
+            # Remove any spaces or special characters
+            phone = value.replace(' ', '').replace('-', '').replace('+', '')
+            
+            # Check if it's a valid Kenyan number (254XXXXXXXXX or 07XXXXXXXX or 01XXXXXXXX)
+            if phone.startswith('254'):
+                if len(phone) != 12:
+                    raise serializers.ValidationError("Invalid M-Pesa phone number format. Use 254XXXXXXXXX")
+            elif phone.startswith('0'):
+                if len(phone) != 10:
+                    raise serializers.ValidationError("Invalid M-Pesa phone number format. Use 07XXXXXXXX or 01XXXXXXXX")
+                # Convert to international format
+                phone = '254' + phone[1:]
+            else:
+                raise serializers.ValidationError("Invalid phone number format. Use 254XXXXXXXXX or 07XXXXXXXX")
+            
+            return phone
+        return value
+    
+    def validate(self, data):
+        """Validate payment method requirements"""
+        if data.get('payment_method') == 'mpesa' and not data.get('mpesa_phone'):
+            raise serializers.ValidationError({
+                'mpesa_phone': 'M-Pesa phone number is required for M-Pesa payments'
+            })
         
-        # Calculate shipping (placeholder logic)
-        shipping_total = 200 * len(cart.vendors)  # KES 200 per vendor
+        # If no mpesa_phone provided, default to shipping_phone
+        if data.get('payment_method') == 'mpesa' and not data.get('mpesa_phone'):
+            data['mpesa_phone'] = self.validate_mpesa_phone(data.get('shipping_phone'))
         
-        # Calculate tax
-        tax_rate = 0.16  # 16% VAT
-        tax_amount = subtotal * tax_rate
-        
-        # Platform fee
-        platform_fee = subtotal * 0.025  # 2.5% platform fee
-        
-        total = subtotal + shipping_total + tax_amount + platform_fee
-        
-        return {
-            'subtotal': subtotal,
-            'shipping_total': shipping_total,
-            'tax_amount': tax_amount,
-            'platform_fee': platform_fee,
-            'total': total,
-            'currency': 'KES'
-        }
+        return data
+
+
+class OrderResponseSerializer(serializers.Serializer):
+    """Response serializer after successful checkout"""
+    order_id = serializers.IntegerField()
+    order_number = serializers.CharField()
+    vendor_name = serializers.CharField()
+    total_amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+    status = serializers.CharField()
+    payment_status = serializers.CharField()
+
+
+class CheckoutResponseSerializer(serializers.Serializer):
+    """Complete checkout response"""
+    success = serializers.BooleanField()
+    message = serializers.CharField()
+    orders = OrderResponseSerializer(many=True)
+    payment_info = serializers.DictField(required=False)
+    total_orders = serializers.IntegerField()
+    total_amount = serializers.DecimalField(max_digits=10, decimal_places=2)

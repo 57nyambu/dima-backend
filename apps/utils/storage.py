@@ -187,16 +187,25 @@ class CloudImageStorage(Storage):
             name: Image path (e.g., 'products/nike-air-max/main.jpg')
             width: Target width in pixels
             height: Target height in pixels
-            quality: Quality 10-100
-            format: Output format ('jpeg', 'webp', 'avif')
+            quality: Quality 10-100 (default: 85)
+            format: Output format ('jpeg', 'webp', 'avif') (default: 'webp')
         
         Returns: 
-            https://files.dima.co.ke/process/products/nike-air-max/main.jpg?w=300&f=webp
+            https://files.dima.co.ke/process/products/nike-air-max/main.jpg?w=300&f=webp&q=85
         """
         if not name:
             return ''
         
+        # Clean the name to avoid duplicates - handle both plain filenames and full paths
         clean_name = name.lstrip('/')
+        
+        # Default format to webp for better performance (as per integration guide)
+        if not format:
+            format = 'webp'
+        
+        # Default quality to 85 if not specified
+        if not quality:
+            quality = 85
         
         # Build query parameters
         params = []
@@ -209,6 +218,7 @@ class CloudImageStorage(Storage):
         if format:
             params.append(f"f={format}")
         
+        # Construct the URL properly
         url = f"{self.base_url}/process/{clean_name}"
         return f"{url}?{'&'.join(params)}" if params else url
 
@@ -219,12 +229,15 @@ def generate_cloud_path(instance, filename):
     
     Returns simple path like: 'products/nike-air-max/main.jpg'
     Server will handle the rest.
+    
+    IMPORTANT: Returns ONLY the path, not duplicated with filename
     """
     import uuid
     from django.utils.text import slugify
     
-    # Get file extension
-    name, ext = os.path.splitext(filename)
+    # Get file extension - handle both full paths and just filenames
+    basename = os.path.basename(filename)
+    name, ext = os.path.splitext(basename)
     ext = ext.lower()
     
     # Validate extension
@@ -232,8 +245,8 @@ def generate_cloud_path(instance, filename):
     if ext.lstrip('.') not in supported:
         logger.warning(f"Unsupported format: {ext}. Supported: {supported}")
     
-    # Generate clean filename
-    clean_name = f"{slugify(name)[:50]}-{uuid.uuid4().hex[:8]}{ext}"
+    # Generate clean filename with UUID to avoid conflicts
+    clean_name = f"{slugify(name)[:30]}-{uuid.uuid4().hex[:8]}{ext}"
     
     # Determine prefix based on instance type
     if hasattr(instance, 'product'):
@@ -246,6 +259,7 @@ def generate_cloud_path(instance, filename):
         # Generic fallback
         prefix = "uploads"
     
+    # Return clean path without any duplication
     path = f"{prefix}/{clean_name}"
     logger.debug(f"Generated cloud path: {path}")
     return path

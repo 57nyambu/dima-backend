@@ -16,7 +16,7 @@ from apps.business.models import Business
 from apps.orders.models import Order
 from apps.accounts.models import CustomUser
 from .models import (
-    Cart, CartItem, ProductSearchIndex, VendorSearchIndex,
+    ProductSearchIndex, VendorSearchIndex,
     MarketplaceNotification, MarketplaceDispute, MarketplaceSettings
 )
 
@@ -24,26 +24,56 @@ logger = logging.getLogger(__name__)
 
 
 class OrderSplitterService:
-    """Service to split multi-vendor carts into separate orders"""
+    """Service to split multi-vendor orders and create order records"""
     
     @staticmethod
-    def split_cart_into_orders(cart: Cart, buyer: CustomUser, shipping_details: dict, 
-                              payment_method: str) -> List[Order]:
+    def create_orders_from_cart(buyer: CustomUser, cart_items: list, shipping_details: dict, 
+                                payment_method: str) -> List[Order]:
         """
-        Split cart items into separate orders per vendor
+        Split cart items into separate orders per vendor and create Order records
+        
+        Args:
+            buyer: CustomUser instance
+            cart_items: List of dicts with {product_id, quantity, price}
+            shipping_details: Dict with shipping information
+            payment_method: Payment method chosen
+        
+        Returns:
+            List of created Order objects
         """
+        from apps.products.models import Product
+        
         orders = []
         
         # Group cart items by vendor
         vendor_items = {}
-        for item in cart.items.select_related('product__business'):
-            vendor_id = item.product.business.id
-            if vendor_id not in vendor_items:
-                vendor_items[vendor_id] = {
-                    'business': item.product.business,
-                    'items': []
-                }
-            vendor_items[vendor_id]['items'].append(item)
+        for item_data in cart_items:
+            try:
+                product = Product.objects.select_related('business').get(
+                    id=item_data['product_id'],
+                    is_active=True
+                )
+                
+                # Check stock availability again (race condition protection)
+                if product.stock_qty < item_data['quantity']:
+                    raise ValueError(f"Insufficient stock for {product.name}")
+                
+                vendor_id = product.business.id
+                if vendor_id not in vendor_items:
+                    vendor_items[vendor_id] = {
+                        'business': product.business,
+                        'items': []
+                    }
+                
+                vendor_items[vendor_id]['items'].append({
+                    'product': product,
+                    'quantity': item_data['quantity'],
+                    'price': item_data.get('price', product.price)
+                })
+                
+            except Product.DoesNotExist:
+                logger.error(f"Product {item_data['product_id']} not found during checkout")
+                continue
         
         # Create separate order for each vendor
         with transaction.atomic():
@@ -52,41 +82,49 @@ class OrderSplitterService:
                 items = vendor_data['items']
                 
                 # Calculate order total for this vendor
-                order_total = sum(item.subtotal for item in items)
+                order_total = sum(item['price'] * item['quantity'] for item in items)
                 
-                # Create order (assuming you have Order model)
+                # Create order
                 order = Order.objects.create(
-                    buyer=buyer,
+                    user=buyer,  # The field is 'user' not 'buyer'
                     business=business,
-                    total_amount=order_total,
-                    shipping_address=shipping_details.get('address'),
-                    shipping_phone=shipping_details.get('phone'),
+                    total=order_total,  # The field is 'total' not 'total_amount'
+                    # Store shipping details in a way compatible with current model
+                    # You may need to add these fields to Order model or store differently
                     payment_method=payment_method,
                     status='pending'
                 )
                 
-                # Create order items (assuming you have OrderItem model)
-                for cart_item in items:
-                    # This would create OrderItem - adjust based on your orders app structure
-                    order_item_data = {
-                        'order': order,
-                        'product': cart_item.product,
-                        'quantity': cart_item.quantity,
-                        'price': cart_item.product.discounted_price or cart_item.product.price,
-                        'subtotal': cart_item.subtotal
-                    }
-                    # order.items.create(**order_item_data)  # Uncomment when OrderItem model exists
-                
-                orders.append(order)
+                # Create order items (if OrderItem model exists)
+                for item in items:
+                    # Update this based on your actual OrderItem model
+                    if hasattr(order, 'items'):
+                        try:
+                            order.items.create(
+                                product=item['product'],
+                                quantity=item['quantity'],
+                                price=item['price'],
+                                subtotal=item['price'] * item['quantity']
+                            )
+                        except Exception as e:
+                            logger.error(f"Could not create order item: {e}")
                 
                 # Update product stock
-                for cart_item in items:
-                    product = cart_item.product
-                    product.stock_qty = F('stock_qty') - cart_item.quantity
-                    product.sales_count = F('sales_count') + cart_item.quantity
+                for item in items:
+                    product = item['product']
+                    product.stock_qty = F('stock_qty') - item['quantity']
+                    product.sales_count = F('sales_count') + item['quantity']
                     product.save(update_fields=['stock_qty', 'sales_count'])
+                
+                orders.append(order)
+                logger.info(f"Created order {order.id} for business {business.name}")
         
         return orders
+    
+    @staticmethod
+    def calculate_total_amount(cart_items: list) -> float:
+        """Calculate total amount from cart items"""
+        return sum(item.get('price', 0) * item.get('quantity', 0) for item in cart_items)
 
 
 class CommissionEngine:
@@ -425,62 +463,118 @@ class AggregationService:
     """Service for aggregating marketplace data"""
     
     @staticmethod
-    def get_homepage_data(user: CustomUser = None) -> Dict[str, Any]:
-        """Get aggregated data for homepage"""
-        cache_key = f"homepage_data:{user.id if user else 'anonymous'}"
+    def get_homepage_data(user: CustomUser = None, products_page: int = 1, vendors_page: int = 1, 
+                         products_per_page: int = 24, vendors_per_page: int = 20) -> Dict[str, Any]:
+        """Get aggregated data for homepage with pagination"""
+        cache_key = f"homepage_data:{user.id if user else 'anonymous'}:p{products_page}:v{vendors_page}"
         data = cache.get(cache_key)
         
         if data is None:
             from .models import Banner, FeaturedProduct
+            from django.utils import timezone
             
             now = timezone.now()
             
-            # Get active banners
+            # Get active banners (no pagination needed)
             banners = Banner.objects.filter(
                 is_active=True,
                 start_date__lte=now,
                 end_date__gte=now
-            ).order_by('position')[:5]
+            ).order_by('position')[:10]
             
-            # Get featured products
-            featured_products = Product.objects.filter(
-                featured_listings__is_active=True,
-                featured_listings__start_date__lte=now,
-                featured_listings__end_date__gte=now,
-                is_active=True
-            ).select_related('business').prefetch_related('images')[:12]
-            
-            # Get trending products (high sales, recent)
-            trending_products = Product.objects.filter(
-                is_active=True
-            ).order_by('-sales_count', '-created_at')[:12]
-            
-            # Get top vendors
-            top_vendors = Business.objects.filter(
-                is_verified=True
-            ).annotate(
-                avg_rating=Avg('reviews__rating'),
-                review_count=Count('reviews')
-            ).filter(review_count__gte=5).order_by('-avg_rating')[:8]
-            
-            # Get main categories
+            # Get main categories WITHOUT images
             categories = Category.objects.filter(
                 parent=None,
                 is_active=True
             ).annotate(
                 product_count=Count('products', filter=Q(products__is_active=True))
-            ).order_by('name')[:12]
+            ).order_by('name')
+            
+            # Get ALL vendors ranked by rating
+            all_vendors = Business.objects.filter(
+                is_verified=True
+            ).annotate(
+                avg_rating=Avg('reviews__rating'),
+                orders_completed=Count('orders', filter=Q(orders__status='delivered'))
+            ).order_by('-avg_rating', '-orders_completed')
+            
+            # Paginate vendors
+            vendors_offset = (vendors_page - 1) * vendors_per_page
+            vendors_total = all_vendors.count()
+            vendors = all_vendors[vendors_offset:vendors_offset + vendors_per_page]
+            
+            # Get featured product IDs and trending product IDs
+            featured_product_ids = set(
+                FeaturedProduct.objects.filter(
+                    is_active=True,
+                    start_date__lte=now,
+                    end_date__gte=now
+                ).values_list('product_id', flat=True)
+            )
+            
+            # Get all active products with tags
+            from datetime import timedelta
+            recent_date = now - timedelta(days=30)
+            
+            all_products = Product.objects.filter(
+                is_active=True
+            ).select_related('business', 'category').prefetch_related('images')
+            
+            # Build product list with tags
+            products_with_tags = []
+            for product in all_products:
+                # Check if featured: either in FeaturedProduct table OR has is_feature=True
+                is_featured = product.id in featured_product_ids or product.is_feature
+                is_trending = product.sales_count > 10  # Products with >10 sales are trending
+                is_new = product.created_at >= recent_date
+                
+                products_with_tags.append({
+                    'product': product,
+                    'is_featured': is_featured,
+                    'is_trending': is_trending,
+                    'is_new': is_new,
+                })
+            
+            # Sort products: featured first, then trending, then by date
+            products_with_tags.sort(
+                key=lambda x: (
+                    -int(x['is_featured']),
+                    -int(x['is_trending']),
+                    -x['product'].sales_count,
+                    -x['product'].created_at.timestamp()
+                )
+            )
+            
+            # Paginate products
+            products_offset = (products_page - 1) * products_per_page
+            products_total = len(products_with_tags)
+            products_page_data = products_with_tags[products_offset:products_offset + products_per_page]
             
             data = {
                 'banners': banners,
-                'categories': categories,
-                'featured_products': featured_products,
-                'trending_products': trending_products,
-                'top_vendors': top_vendors,
+                'categories': list(categories),
+                'vendors': list(vendors),
+                'products': products_page_data,
+                'products_pagination': {
+                    'page': products_page,
+                    'per_page': products_per_page,
+                    'total': products_total,
+                    'total_pages': (products_total + products_per_page - 1) // products_per_page,
+                    'has_next': products_offset + products_per_page < products_total,
+                    'has_prev': products_page > 1
+                },
+                'vendors_pagination': {
+                    'page': vendors_page,
+                    'per_page': vendors_per_page,
+                    'total': vendors_total,
+                    'total_pages': (vendors_total + vendors_per_page - 1) // vendors_per_page,
+                    'has_next': vendors_offset + vendors_per_page < vendors_total,
+                    'has_prev': vendors_page > 1
+                }
             }
             
-            # Cache for 30 minutes
-            cache.set(cache_key, data, 1800)
+            # Cache for 15 minutes (shorter due to pagination)
+            cache.set(cache_key, data, 900)
         
         return data
     
@@ -518,51 +612,3 @@ class AggregationService:
             search_index.save()
         
         logger.info(f"Updated search indexes for {products.count()} products")
-
-
-class CartService:
-    """Service for cart management"""
-    
-    @staticmethod
-    def add_to_cart(user: CustomUser, product: Product, quantity: int = 1) -> CartItem:
-        """Add product to user's cart"""
-        cart, created = Cart.objects.get_or_create(user=user)
-        
-        cart_item, created = CartItem.objects.get_or_create(
-            cart=cart,
-            product=product,
-            defaults={'quantity': quantity}
-        )
-        
-        if not created:
-            cart_item.quantity += quantity
-            cart_item.save()
-        
-        # Send low stock alert if needed
-        if product.stock_qty <= 10:
-            NotificationService.send_stock_alert(product)
-        
-        return cart_item
-    
-    @staticmethod
-    def update_cart_item(user: CustomUser, product: Product, quantity: int) -> CartItem:
-        """Update cart item quantity"""
-        cart = Cart.objects.get(user=user)
-        cart_item = CartItem.objects.get(cart=cart, product=product)
-        
-        if quantity <= 0:
-            cart_item.delete()
-            return None
-        
-        cart_item.quantity = quantity
-        cart_item.save()
-        return cart_item
-    
-    @staticmethod
-    def clear_cart(user: CustomUser):
-        """Clear user's cart"""
-        try:
-            cart = Cart.objects.get(user=user)
-            cart.items.all().delete()
-        except Cart.DoesNotExist:
-            pass

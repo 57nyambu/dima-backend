@@ -48,8 +48,6 @@ class MarketplaceSettingsManager:
         settings = cls.get_settings()
         return {
             'reviews_enabled': settings.enable_reviews,
-            'wishlist_enabled': settings.enable_wishlist,
-            'comparison_enabled': settings.enable_comparison,
             'vendor_chat_enabled': settings.enable_vendor_chat
         }
     
@@ -57,8 +55,4 @@ class MarketplaceSettingsManager:
     def validate_order_amount(cls, amount: float) -> bool:
         """Validate if order amount meets minimum requirement"""
         return amount >= cls.get_min_order_amount()
-    
-    @classmethod
-    def validate_cart_quantity(cls, quantity: int) -> bool:
-        """Validate if cart quantity meets maximum limit"""
-        return quantity <= cls.get_settings().max_products_per_order
+

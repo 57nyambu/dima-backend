@@ -192,13 +192,18 @@ if STORAGE_BACKEND == 'cloud':
         'RETRY_DELAY': 1,
     }
 
-    # Image Size Presets
+    # Image Size Presets (with WebP defaults for better performance)
     CLOUD_IMAGE_SIZES = {
-        'thumbnail_small': {'width': 150, 'height': 150, 'quality': 80},
-        'thumbnail_medium': {'width': 300, 'height': 300, 'quality': 85},
-        'thumbnail_large': {'width': 600, 'height': 600, 'quality': 90},
-        'medium': {'width': 800, 'height': 800, 'quality': 90},
-        'large': {'width': 1920, 'height': 1920, 'quality': 95},
+        # Small thumbnails for mobile/list views (150x150 WebP)
+        'thumbnail_small': {'width': 150, 'height': 150, 'quality': 80, 'format': 'webp'},
+        # Medium thumbnails for product cards (300x300 WebP) - Perfect for product listings
+        'thumbnail_medium': {'width': 300, 'height': 300, 'quality': 85, 'format': 'webp'},
+        # Large thumbnails for product detail pages (600x600 WebP)
+        'thumbnail_large': {'width': 600, 'height': 600, 'quality': 90, 'format': 'webp'},
+        # Medium size for detail views (800x800 WebP)
+        'medium': {'width': 800, 'height': 800, 'quality': 90, 'format': 'webp'},
+        # Large size for hero images (1200x1200 WebP) - Perfect for product detail pages
+        'large': {'width': 1200, 'height': 1200, 'quality': 95, 'format': 'webp'},
     }
 
     # Use cloud storage as default

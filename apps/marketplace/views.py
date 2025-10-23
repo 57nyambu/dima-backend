@@ -9,23 +9,25 @@ from django.core.cache import cache
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from django.db import models
+import logging
+
+logger = logging.getLogger(__name__)
 
 from apps.products.models import Product, Category
 from apps.business.models import Business
 from apps.orders.models import Order
 from .models import (
-    Cart, CartItem, Wishlist, WishlistItem, Banner,
-    ProductComparison, MarketplaceDispute, MarketplaceNotification
+    Banner, MarketplaceDispute, MarketplaceNotification
 )
 from .serializers import (
     ProductMarketplaceSerializer, VendorDetailSerializer, VendorSummarySerializer,
-    CartSerializer, OrderMarketplaceSerializer, HomepageDataSerializer,
-    WishlistSerializer, ProductComparisonSerializer, DisputeSerializer,
-    NotificationSerializer, SearchResultSerializer, CheckoutSessionSerializer,
-    CategoryListSerializer, BannerSerializer
+    OrderMarketplaceSerializer, HomepageDataSerializer,
+    DisputeSerializer,
+    NotificationSerializer, SearchResultSerializer,
+    CategoryListSerializer, BannerSerializer, CheckoutSerializer, CheckoutResponseSerializer
 )
 from .services import (
-    SearchService, AggregationService, CartService, 
+    SearchService, AggregationService,
     OrderSplitterService, NotificationService
 )
 
@@ -142,10 +144,27 @@ def get_categories(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticatedOrReadOnly])
-@cache_page(60 * 30)  # Cache for 30 minutes
 def homepage_data(request):
-    """Aggregated homepage data"""
-    data = AggregationService.get_homepage_data(request.user if request.user.is_authenticated else None)
+    """Aggregated homepage data with pagination support"""
+    # Get pagination parameters
+    products_page = int(request.query_params.get('products_page', 1))
+    vendors_page = int(request.query_params.get('vendors_page', 1))
+    products_per_page = int(request.query_params.get('products_per_page', 24))
+    vendors_per_page = int(request.query_params.get('vendors_per_page', 20))
+    
+    # Validate pagination parameters
+    products_page = max(1, products_page)
+    vendors_page = max(1, vendors_page)
+    products_per_page = min(max(1, products_per_page), 100)
+    vendors_per_page = min(max(1, vendors_per_page), 50)
+    
+    data = AggregationService.get_homepage_data(
+        request.user if request.user.is_authenticated else None,
+        products_page=products_page,
+        vendors_page=vendors_page,
+        products_per_page=products_per_page,
+        vendors_per_page=vendors_per_page
+    )
     serializer = HomepageDataSerializer(data, context={'request': request})
     return Response(serializer.data)
 
@@ -289,242 +308,6 @@ def search_suggestions(request):
         return Response({'suggestions': []})
 
 
-# Cart Management Views
-class CartView(generics.RetrieveAPIView):
-    """User's shopping cart"""
-    serializer_class = CartSerializer
-    permission_classes = [IsAuthenticated]
-    
-    def get_object(self):
-        cart, created = Cart.objects.get_or_create(user=self.request.user)
-        return cart
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def add_to_cart(request):
-    """Add product to cart"""
-    product_id = request.data.get('product_id')
-    quantity = int(request.data.get('quantity', 1))
-    
-    try:
-        product = Product.objects.get(id=product_id, is_active=True)
-        
-        # Check stock availability
-        if product.stock_qty < quantity:
-            return Response({
-                'error': 'Insufficient stock',
-                'available_stock': product.stock_qty
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        cart_item = CartService.add_to_cart(request.user, product, quantity)
-        
-        return Response({
-            'message': 'Product added to cart',
-            'cart_item_id': cart_item.id,
-            'quantity': cart_item.quantity
-        }, status=status.HTTP_201_CREATED)
-        
-    except Product.DoesNotExist:
-        return Response({
-            'error': 'Product not found'
-        }, status=status.HTTP_404_NOT_FOUND)
-
-
-@api_view(['PUT'])
-@permission_classes([IsAuthenticated])
-def update_cart_item(request, item_id):
-    """Update cart item quantity"""
-    quantity = int(request.data.get('quantity', 1))
-    
-    try:
-        cart_item = CartItem.objects.get(
-            id=item_id,
-            cart__user=request.user
-        )
-        
-        if quantity <= 0:
-            cart_item.delete()
-            return Response({'message': 'Item removed from cart'})
-        
-        # Check stock
-        if cart_item.product.stock_qty < quantity:
-            return Response({
-                'error': 'Insufficient stock',
-                'available_stock': cart_item.product.stock_qty
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        cart_item.quantity = quantity
-        cart_item.save()
-        
-        return Response({
-            'message': 'Cart updated',
-            'quantity': cart_item.quantity,
-            'subtotal': cart_item.subtotal
-        })
-        
-    except CartItem.DoesNotExist:
-        return Response({
-            'error': 'Cart item not found'
-        }, status=status.HTTP_404_NOT_FOUND)
-
-
-@api_view(['DELETE'])
-@permission_classes([IsAuthenticated])
-def remove_from_cart(request, item_id):
-    """Remove item from cart"""
-    try:
-        cart_item = CartItem.objects.get(
-            id=item_id,
-            cart__user=request.user
-        )
-        cart_item.delete()
-        
-        return Response({'message': 'Item removed from cart'})
-        
-    except CartItem.DoesNotExist:
-        return Response({
-            'error': 'Cart item not found'
-        }, status=status.HTTP_404_NOT_FOUND)
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def clear_cart(request):
-    """Clear user's cart"""
-    CartService.clear_cart(request.user)
-    return Response({'message': 'Cart cleared'})
-
-
-# Checkout Views
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def checkout_session(request):
-    """Get checkout session data"""
-    try:
-        cart = Cart.objects.get(user=request.user)
-        if not cart.items.exists():
-            return Response({
-                'error': 'Cart is empty'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        session_data = {'cart': cart}
-        serializer = CheckoutSessionSerializer(session_data, context={'request': request})
-        
-        return Response(serializer.data)
-        
-    except Cart.DoesNotExist:
-        return Response({
-            'error': 'Cart not found'
-        }, status=status.HTTP_404_NOT_FOUND)
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def process_checkout(request):
-    """Process multi-vendor checkout"""
-    shipping_details = request.data.get('shipping_details', {})
-    payment_method = request.data.get('payment_method', 'mpesa')
-    
-    try:
-        cart = Cart.objects.get(user=request.user)
-        if not cart.items.exists():
-            return Response({
-                'error': 'Cart is empty'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Split cart into separate orders per vendor
-        orders = OrderSplitterService.split_cart_into_orders(
-            cart, request.user, shipping_details, payment_method
-        )
-        
-        # Send notifications
-        for order in orders:
-            NotificationService.send_order_notification('order_placed', order)
-        
-        # Clear cart after successful checkout
-        CartService.clear_cart(request.user)
-        
-        return Response({
-            'message': 'Orders created successfully',
-            'order_count': len(orders),
-            'orders': [
-                {
-                    'id': order.id,
-                    'order_number': getattr(order, 'order_number', str(order.id)),
-                    'vendor': order.business.name,
-                    'total': order.total_amount
-                } for order in orders
-            ]
-        }, status=status.HTTP_201_CREATED)
-        
-    except Cart.DoesNotExist:
-        return Response({
-            'error': 'Cart not found'
-        }, status=status.HTTP_404_NOT_FOUND)
-
-
-# Wishlist Views
-class WishlistView(generics.RetrieveAPIView):
-    """User's wishlist"""
-    serializer_class = WishlistSerializer
-    permission_classes = [IsAuthenticated]
-    
-    def get_object(self):
-        wishlist, created = Wishlist.objects.get_or_create(user=self.request.user)
-        return wishlist
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def add_to_wishlist(request):
-    """Add product to wishlist"""
-    product_id = request.data.get('product_id')
-    
-    try:
-        product = Product.objects.get(id=product_id, is_active=True)
-        wishlist, created = Wishlist.objects.get_or_create(user=request.user)
-        
-        wishlist_item, created = WishlistItem.objects.get_or_create(
-            wishlist=wishlist,
-            product=product
-        )
-        
-        if created:
-            return Response({
-                'message': 'Product added to wishlist'
-            }, status=status.HTTP_201_CREATED)
-        else:
-            return Response({
-                'message': 'Product already in wishlist'
-            })
-            
-    except Product.DoesNotExist:
-        return Response({
-            'error': 'Product not found'
-        }, status=status.HTTP_404_NOT_FOUND)
-
-
-@api_view(['DELETE'])
-@permission_classes([IsAuthenticated])
-def remove_from_wishlist(request, product_id):
-    """Remove product from wishlist"""
-    try:
-        wishlist = Wishlist.objects.get(user=request.user)
-        wishlist_item = WishlistItem.objects.get(
-            wishlist=wishlist,
-            product_id=product_id
-        )
-        wishlist_item.delete()
-        
-        return Response({'message': 'Product removed from wishlist'})
-        
-    except (Wishlist.DoesNotExist, WishlistItem.DoesNotExist):
-        return Response({
-            'error': 'Product not found in wishlist'
-        }, status=status.HTTP_404_NOT_FOUND)
-
-
 # Order Views
 class OrderListView(generics.ListAPIView):
     """User's order history"""
@@ -546,49 +329,230 @@ class OrderDetailView(generics.RetrieveAPIView):
         return Order.objects.filter(buyer=self.request.user).select_related('business')
 
 
-# Product Comparison Views
-class ProductComparisonListView(generics.ListCreateAPIView):
-    """User's product comparisons"""
-    serializer_class = ProductComparisonSerializer
-    permission_classes = [IsAuthenticated]
+# Checkout Views
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def process_checkout(request):
+    """
+    Process checkout with cart data from frontend.
+    Supports M-Pesa, Airtel Money, and Card payments.
+    """
+    from .serializers import CheckoutSerializer, CheckoutResponseSerializer
+    from apps.payments.mpesa import initiate_stk_push
     
-    def get_queryset(self):
-        return ProductComparison.objects.filter(user=self.request.user)
+    # Validate checkout data
+    serializer = CheckoutSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response({
+            'success': False,
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
     
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+    validated_data = serializer.validated_data
+    
+    try:
+        # Create orders from cart items
+        orders = OrderSplitterService.create_orders_from_cart(
+            buyer=request.user,
+            cart_items=validated_data['items'],
+            shipping_details={
+                'shipping_address': validated_data['shipping_address'],
+                'shipping_city': validated_data['shipping_city'],
+                'shipping_county': validated_data['shipping_county'],
+                'shipping_phone': validated_data['shipping_phone'],
+                'shipping_notes': validated_data.get('shipping_notes', '')
+            },
+            payment_method=validated_data['payment_method']
+        )
+        
+        if not orders:
+            return Response({
+                'success': False,
+                'message': 'No orders could be created. Please check your cart items.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Calculate total amount
+        total_amount = sum(order.total for order in orders)
+        
+        # Prepare response data
+        order_responses = []
+        for order in orders:
+            order_responses.append({
+                'order_id': order.id,
+                'order_number': getattr(order, 'order_number', str(order.id)),
+                'vendor_name': order.business.name,
+                'total_amount': float(order.total),
+                'status': order.status,
+                'payment_status': getattr(order, 'payment_status', 'pending')
+            })
+        
+        response_data = {
+            'success': True,
+            'message': f'{len(orders)} order(s) created successfully',
+            'orders': order_responses,
+            'total_orders': len(orders),
+            'total_amount': float(total_amount)
+        }
+        
+        # Handle M-Pesa payment
+        if validated_data['payment_method'] == 'mpesa':
+            try:
+                # Initiate M-Pesa STK Push
+                mpesa_response = initiate_stk_push(
+                    phone_number=validated_data['mpesa_phone'],
+                    amount=int(total_amount),
+                    account_reference=f"ORDER-{'-'.join([str(o.id) for o in orders])}",
+                    transaction_desc=f"Payment for {len(orders)} order(s)"
+                )
+                
+                if mpesa_response.get('success'):
+                    response_data['payment_info'] = {
+                        'provider': 'M-Pesa',
+                        'status': 'initiated',
+                        'message': 'STK push sent to your phone. Please enter your M-Pesa PIN.',
+                        'checkout_request_id': mpesa_response.get('CheckoutRequestID'),
+                        'merchant_request_id': mpesa_response.get('MerchantRequestID')
+                    }
+                    
+                    # Store checkout request ID for callback matching
+                    for order in orders:
+                        # Store in mpesa_code field temporarily (or add new field via migration)
+                        order.mpesa_code = mpesa_response.get('CheckoutRequestID')
+                        order.save(update_fields=['mpesa_code'])
+                else:
+                    response_data['payment_info'] = {
+                        'provider': 'M-Pesa',
+                        'status': 'failed',
+                        'message': mpesa_response.get('errorMessage', 'Failed to initiate M-Pesa payment'),
+                        'error_code': mpesa_response.get('errorCode')
+                    }
+                    
+            except Exception as e:
+                logger.error(f"M-Pesa STK Push failed: {str(e)}")
+                response_data['payment_info'] = {
+                    'provider': 'M-Pesa',
+                    'status': 'error',
+                    'message': 'Payment initiation failed. Please try again or contact support.'
+                }
+        
+        elif validated_data['payment_method'] == 'airtel_money':
+            response_data['payment_info'] = {
+                'provider': 'Airtel Money',
+                'status': 'pending',
+                'message': 'Airtel Money integration coming soon. Please use M-Pesa or card payment.'
+            }
+        
+        elif validated_data['payment_method'] == 'card':
+            response_data['payment_info'] = {
+                'provider': 'Card',
+                'status': 'pending',
+                'message': 'Card payment integration coming soon. Please use M-Pesa.'
+            }
+        
+        # Send notifications
+        for order in orders:
+            try:
+                NotificationService.send_order_notification('order_placed', order)
+            except Exception as e:
+                logger.error(f"Failed to send notification for order {order.id}: {str(e)}")
+        
+        return Response(response_data, status=status.HTTP_201_CREATED)
+        
+    except ValueError as e:
+        return Response({
+            'success': False,
+            'message': str(e)
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    except Exception as e:
+        logger.error(f"Checkout failed: {str(e)}", exc_info=True)
+        return Response({
+            'success': False,
+            'message': 'Checkout failed. Please try again or contact support.'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def add_to_comparison(request):
-    """Add product to comparison"""
-    product_id = request.data.get('product_id')
-    comparison_name = request.data.get('comparison_name', 'My Comparison')
+def mpesa_callback(request):
+    """
+    Handle M-Pesa payment callback from Safaricom.
+    This endpoint should be registered in your M-Pesa configuration.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
     
     try:
-        product = Product.objects.get(id=product_id, is_active=True)
-        comparison, created = ProductComparison.objects.get_or_create(
-            user=request.user,
-            name=comparison_name
-        )
+        callback_data = request.data
+        logger.info(f"M-Pesa Callback received: {callback_data}")
         
-        if comparison.products.count() >= 4:
-            return Response({
-                'error': 'Maximum 4 products allowed in comparison'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        # Extract callback data
+        result_code = callback_data.get('Body', {}).get('stkCallback', {}).get('ResultCode')
+        checkout_request_id = callback_data.get('Body', {}).get('stkCallback', {}).get('CheckoutRequestID')
         
-        comparison.products.add(product)
+        if not checkout_request_id:
+            logger.error("No CheckoutRequestID in callback")
+            return Response({'ResultCode': 1, 'ResultDesc': 'Invalid callback data'})
         
-        return Response({
-            'message': 'Product added to comparison',
-            'comparison_id': comparison.id
-        })
+        # Find orders with this checkout request ID
+        orders = Order.objects.filter(mpesa_code=checkout_request_id)
         
-    except Product.DoesNotExist:
-        return Response({
-            'error': 'Product not found'
-        }, status=status.HTTP_404_NOT_FOUND)
+        if not orders.exists():
+            logger.warning(f"No orders found for CheckoutRequestID: {checkout_request_id}")
+            return Response({'ResultCode': 0, 'ResultDesc': 'Accepted'})
+        
+        # Check if payment was successful
+        if result_code == 0:
+            # Payment successful
+            callback_metadata = callback_data.get('Body', {}).get('stkCallback', {}).get('CallbackMetadata', {}).get('Item', [])
+            
+            # Extract payment details
+            amount = None
+            mpesa_receipt = None
+            phone_number = None
+            transaction_date = None
+            
+            for item in callback_metadata:
+                if item.get('Name') == 'Amount':
+                    amount = item.get('Value')
+                elif item.get('Name') == 'MpesaReceiptNumber':
+                    mpesa_receipt = item.get('Value')
+                elif item.get('Name') == 'PhoneNumber':
+                    phone_number = item.get('Value')
+                elif item.get('Name') == 'TransactionDate':
+                    transaction_date = item.get('Value')
+            
+            # Update all orders
+            for order in orders:
+                # Use qsetent_status field for payment status (or add payment_status field via migration)
+                order.qsetent_status = 'paid'
+                order.status = 'confirmed'
+                # Store receipt in mpesa_code if it wasn't already used for checkout_request_id
+                # Ideally add mpesa_receipt_number field via migration
+                order.save()
+                
+                # Send confirmation notification
+                try:
+                    NotificationService.send_order_notification('order_confirmed', order)
+                except Exception as e:
+                    logger.error(f"Failed to send confirmation for order {order.id}: {str(e)}")
+            
+            logger.info(f"Payment successful for CheckoutRequestID: {checkout_request_id}, Receipt: {mpesa_receipt}")
+            
+        else:
+            # Payment failed or cancelled
+            result_desc = callback_data.get('Body', {}).get('stkCallback', {}).get('ResultDesc', 'Payment failed')
+            
+            for order in orders:
+                order.qsetent_status = 'failed'
+                order.save()
+            
+            logger.warning(f"Payment failed for CheckoutRequestID: {checkout_request_id}, Reason: {result_desc}")
+        
+        return Response({'ResultCode': 0, 'ResultDesc': 'Accepted'})
+        
+    except Exception as e:
+        logger.error(f"M-Pesa callback processing failed: {str(e)}", exc_info=True)
+        return Response({'ResultCode': 1, 'ResultDesc': 'Processing failed'})
 
 
 # Dispute Views

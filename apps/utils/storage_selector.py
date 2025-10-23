@@ -74,8 +74,9 @@ def local_product_image_path(instance, filename):
     from django.utils.text import slugify
     import uuid
     
-    # Get extension
-    name, ext = os.path.splitext(filename)
+    # Get extension - handle both full paths and just filenames
+    basename = os.path.basename(filename)
+    name, ext = os.path.splitext(basename)
     # Generate unique filename
     unique_name = f"{slugify(name)[:30]}-{uuid.uuid4().hex[:8]}{ext}"
     
@@ -90,8 +91,9 @@ def local_category_image_path(instance, filename):
     from django.utils.text import slugify
     import uuid
     
-    # Get extension
-    name, ext = os.path.splitext(filename)
+    # Get extension - handle both full paths and just filenames
+    basename = os.path.basename(filename)
+    name, ext = os.path.splitext(basename)
     # Generate unique filename
     unique_name = f"{slugify(name)[:30]}-{uuid.uuid4().hex[:8]}{ext}"
     
@@ -108,7 +110,7 @@ def get_image_url(file_field, size=None, format=None):
     Args:
         file_field: Django ImageField or FileField instance
         size: String key from CLOUD_IMAGE_SIZES ('thumbnail_small', 'medium', etc.)
-        format: Image format ('webp', 'jpeg', etc.)
+        format: Image format ('webp', 'jpeg', etc.) - defaults to 'webp'
     
     Returns:
         String URL
@@ -126,6 +128,10 @@ def get_image_url(file_field, size=None, format=None):
         try:
             storage = getattr(file_field, 'storage', None)
             
+            # Default to webp for better performance
+            if not format:
+                format = 'webp'
+            
             if size:
                 # Get size configuration
                 sizes = settings.CLOUD_IMAGE_SIZES
@@ -136,7 +142,7 @@ def get_image_url(file_field, size=None, format=None):
                         file_field.name,
                         width=size_config.get('width'),
                         height=size_config.get('height'),
-                        quality=size_config.get('quality'),
+                        quality=size_config.get('quality', 85),
                         format=format
                     )
             
@@ -147,6 +153,7 @@ def get_image_url(file_field, size=None, format=None):
             
         except Exception as e:
             logger.error(f"Error generating cloud URL: {e}")
+            return ''
     
     # Fallback to standard URL for local storage
     return file_field.url if file_field else ''

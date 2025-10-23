@@ -5,8 +5,7 @@ from django.db.models import Count, Avg
 from .models import (
     MarketplaceSettings, FeaturedProduct, Banner, 
     ProductSearchIndex, VendorSearchIndex,
-    Cart, CartItem, Wishlist, WishlistItem,
-    ProductComparison, MarketplaceDispute, DisputeMessage,
+    MarketplaceDispute, DisputeMessage,
     MarketplaceNotification
 )
 
@@ -22,7 +21,7 @@ class MarketplaceSettingsAdmin(admin.ModelAdmin):
             'fields': ['max_products_per_order']
         }),
         ('Features', {
-            'fields': ['enable_reviews', 'enable_wishlist', 'enable_comparison', 'enable_vendor_chat']
+            'fields': ['enable_reviews', 'enable_vendor_chat']
         })
     ]
 
@@ -53,55 +52,6 @@ class BannerAdmin(admin.ModelAdmin):
             )
         return "No image"
     image_preview.short_description = "Preview"
-
-
-class CartItemInline(admin.TabularInline):
-    model = CartItem
-    extra = 0
-    readonly_fields = ['subtotal']
-    
-
-@admin.register(Cart)
-class CartAdmin(admin.ModelAdmin):
-    list_display = ['user', 'total_items', 'total_amount', 'updated_at']
-    search_fields = ['user__email', 'user__first_name', 'user__last_name']
-    readonly_fields = ['total_amount', 'total_items']
-    inlines = [CartItemInline]
-    
-    def total_items(self, obj):
-        return obj.total_items
-    total_items.short_description = "Total Items"
-    
-    def total_amount(self, obj):
-        return f"KES {obj.total_amount:.2f}"
-    total_amount.short_description = "Total Amount"
-
-
-class WishlistItemInline(admin.TabularInline):
-    model = WishlistItem
-    extra = 0
-
-
-@admin.register(Wishlist)
-class WishlistAdmin(admin.ModelAdmin):
-    list_display = ['user', 'item_count', 'updated_at']
-    search_fields = ['user__email', 'user__first_name', 'user__last_name']
-    inlines = [WishlistItemInline]
-    
-    def item_count(self, obj):
-        return obj.items.count()
-    item_count.short_description = "Items"
-
-
-@admin.register(ProductComparison)
-class ProductComparisonAdmin(admin.ModelAdmin):
-    list_display = ['user', 'name', 'product_count', 'created_at']
-    search_fields = ['user__email', 'name']
-    filter_horizontal = ['products']
-    
-    def product_count(self, obj):
-        return obj.products.count()
-    product_count.short_description = "Products"
 
 
 class DisputeMessageInline(admin.TabularInline):

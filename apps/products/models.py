@@ -44,11 +44,17 @@ def category_image_path(instance, filename):
 
 class CategoryImage(models.Model):
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='images')
+    
+    # Get storage backend based on settings
+    from apps.utils.storage_selector import get_image_storage
+    _storage = get_image_storage() if settings.STORAGE_BACKEND == 'cloud' else None
+    
     original = models.ImageField(
         upload_to=category_image_path, 
         max_length=255, 
         null=True, 
-        blank=True
+        blank=True,
+        storage=_storage
     )
     
     # ImageKit fields for LOCAL storage only
@@ -220,9 +226,15 @@ def product_image_path(instance, filename):
 
 class ProductImage(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='images')
+    
+    # Get storage backend based on settings
+    from apps.utils.storage_selector import get_image_storage
+    _storage = get_image_storage() if settings.STORAGE_BACKEND == 'cloud' else None
+    
     original = models.ImageField(
         upload_to=product_image_path, 
-        max_length=255
+        max_length=255,
+        storage=_storage
     )
     
     # ImageKit fields for LOCAL storage only

@@ -15,8 +15,4 @@ app.conf.beat_schedule = {
         'task': 'marketplace.utils.update_search_indexes',
         'schedule': crontab(minute=0, hour='*/6'),  # Every 6 hours
     },
-    'cleanup-abandoned-carts': {
-        'task': 'marketplace.utils.cleanup_abandoned_carts',
-        'schedule': crontab(minute=0, hour=2),  # Daily at 2 AM
-    },
 }

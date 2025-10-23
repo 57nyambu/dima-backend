@@ -25,29 +25,13 @@ urlpatterns = [
     path('vendors/', views.VendorListView.as_view(), name='vendor_list'),
     path('vendors/<slug:slug>/', views.VendorDetailView.as_view(), name='vendor_detail'),
     
-    # Cart Management (Moved to Frontend)
-    # path('cart/', views.CartView.as_view(), name='cart'),
-    # path('cart/add/', views.add_to_cart, name='add_to_cart'),
-    # path('cart/items/<int:item_id>/', views.update_cart_item, name='update_cart_item'),
-    # path('cart/items/<int:item_id>/remove/', views.remove_from_cart, name='remove_from_cart'),
-    # path('cart/clear/', views.clear_cart, name='clear_cart'),
-    
-    # Checkout (Keep these active as they require server-side processing)
-    path('checkout/', views.checkout_session, name='checkout_session'),
-    path('checkout/process/', views.process_checkout, name='process_checkout'),
-    
-    # Wishlist (Moved to Frontend)
-    # path('wishlist/', views.WishlistView.as_view(), name='wishlist'),
-    # path('wishlist/add/', views.add_to_wishlist, name='add_to_wishlist'),
-    # path('wishlist/remove/<int:product_id>/', views.remove_from_wishlist, name='remove_from_wishlist'),
+    # Checkout
+    path('checkout/', views.process_checkout, name='process_checkout'),
+    path('checkout/mpesa-callback/', views.mpesa_callback, name='mpesa_callback'),
     
     # Orders
     path('orders/', views.OrderListView.as_view(), name='order_list'),
     path('orders/<int:pk>/', views.OrderDetailView.as_view(), name='order_detail'),
-    
-    # Product Comparison (Moved to Frontend)
-    # path('comparisons/', views.ProductComparisonListView.as_view(), name='comparison_list'),
-    # path('comparisons/add/', views.add_to_comparison, name='add_to_comparison'),
     
     # Disputes
     path('disputes/', views.DisputeListCreateView.as_view(), name='dispute_list'),

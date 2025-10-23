@@ -100,23 +100,6 @@ def send_order_emails(order_id):
 
 
 @shared_task
-def cleanup_abandoned_carts():
-    """Clean up carts that haven't been updated in 30 days"""
-    from django.utils import timezone
-    from datetime import timedelta
-    from .models import Cart
-    
-    cutoff_date = timezone.now() - timedelta(days=30)
-    
-    abandoned_carts = Cart.objects.filter(updated_at__lt=cutoff_date)
-    count = abandoned_carts.count()
-    
-    abandoned_carts.delete()
-    
-    logger.info(f"Cleaned up {count} abandoned carts")
-
-
-@shared_task
 def generate_vendor_analytics_report(business_id, period_start, period_end):
     """Generate analytics report for a vendor"""
     from .services import CommissionEngine
