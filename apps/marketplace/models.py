@@ -137,6 +137,7 @@ class ProductSearchIndex(models.Model):
     # Popularity metrics
     view_count = models.IntegerField(default=0)
     sales_count = models.IntegerField(default=0)
+    wishlist_count = models.IntegerField(default=0)
     
     updated_at = models.DateTimeField(auto_now=True)
     

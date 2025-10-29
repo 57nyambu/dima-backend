@@ -22,6 +22,7 @@ def update_product_search_index(sender, instance, **kwargs):
         search_index.business_verified = instance.business.is_verified
         search_index.category_name = instance.category.name
         search_index.sales_count = instance.sales_count
+        search_index.wishlist_count = instance.wishlist_count if hasattr(instance, 'wishlist_count') else 0
         search_index.save()
         
         # Clear related cache
