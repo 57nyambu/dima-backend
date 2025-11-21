@@ -10,7 +10,10 @@ from .serializers import (
     PasswordResetSerializer, 
     AdminUserDetailSerializer,
     PasswordResetConfirmSerializer,
-    UserDetailSerializer)
+    UserDetailSerializer,
+    GoogleAuthSerializer,
+    PasswordResetCodeRequestSerializer,
+    PasswordResetCodeVerifySerializer)
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.exceptions import InvalidToken
@@ -18,13 +21,24 @@ from apps.utils.emailService import welcomeEmail
 from django.views.generic.base import TemplateView
 import logging
 from .models import CustomUser, Role
-from apps.utils.emailService import forgotPassEmail
+from apps.utils.emailService import forgotPassEmail, send_reset_code_email, send_reset_code_sms
 
 logger = logging.getLogger(__name__)
 
 
 class WelcomeView(TemplateView):
     template_name = "default.html"
+
+
+class GoogleAuthTestView(TemplateView):
+    """Test page for Google OAuth authentication"""
+    template_name = "accounts/google_auth_test.html"
+    
+    def get_context_data(self, **kwargs):
+        from django.conf import settings
+        context = super().get_context_data(**kwargs)
+        context['GOOGLE_CLIENT_ID'] = getattr(settings, 'GOOGLE_CLIENT_ID', '')
+        return context
 
 
 class IsAdminUser(permissions.BasePermission):
@@ -179,6 +193,119 @@ class PasswordResetConfirmView(APIView):
                 'error': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
             
+        return Response({
+            'success': False,
+            'error': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class GoogleAuthView(APIView):
+    """Handle Google OAuth authentication"""
+    permission_classes = [permissions.AllowAny]
+    
+    def post(self, request):
+        serializer = GoogleAuthSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            user = serializer.validated_data['user']
+            role = serializer.validated_data['role']
+            is_new_user = serializer.validated_data['is_new_user']
+            
+            # Generate tokens
+            refresh = RefreshToken.for_user(user)
+            
+            return Response({
+                'success': True,
+                'message': 'Google authentication successful',
+                'is_new_user': is_new_user,
+                'access_token': str(refresh.access_token),
+                'refresh_token': str(refresh),
+                'role': role,
+                'user': {
+                    'email': user.email,
+                    'first_name': user.first_name,
+                    'last_name': user.last_name,
+                    'username': user.username,
+                }
+            }, status=status.HTTP_200_OK)
+        
+        return Response({
+            'success': False,
+            'error': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PasswordResetCodeRequestView(APIView):
+    """Request password reset code via email or SMS"""
+    permission_classes = [permissions.AllowAny]
+    
+    def post(self, request):
+        serializer = PasswordResetCodeRequestSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            user = serializer.validated_data['user']
+            method = serializer.validated_data['method']
+            reset_code = user.generate_reset_code(expiry_minutes=10)
+            
+            try:
+                if method == 'email':
+                    # Send reset code via email
+                    send_reset_code_email({
+                        'email': user.email,
+                        'reset_code': reset_code,
+                        'first_name': user.first_name or 'User',
+                        'expires_in': '10 minutes'
+                    })
+                elif method == 'sms':
+                    # Send reset code via SMS
+                    if not user.phone_number:
+                        return Response({
+                            'success': False,
+                            'error': 'Phone number not found for this user'
+                        }, status=status.HTTP_400_BAD_REQUEST)
+                    
+                    send_reset_code_sms({
+                        'phone_number': user.phone_number,
+                        'reset_code': reset_code,
+                        'expires_in': '10 minutes'
+                    })
+                
+                return Response({
+                    'success': True,
+                    'message': f'Reset code sent via {method}',
+                    'method': method,
+                    'destination': user.email if method == 'email' else user.phone_number
+                }, status=status.HTTP_200_OK)
+                
+            except Exception as e:
+                logger.error(f"Failed to send reset code: {str(e)}")
+                return Response({
+                    'success': False,
+                    'error': f'Failed to send reset code via {method}'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        return Response({
+            'success': False,
+            'error': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PasswordResetCodeVerifyView(APIView):
+    """Verify reset code and set new password"""
+    permission_classes = [permissions.AllowAny]
+    
+    def post(self, request):
+        serializer = PasswordResetCodeVerifySerializer(data=request.data)
+        
+        if serializer.is_valid():
+            user = serializer.validated_data['user']
+            user.clear_reset_code()
+            
+            return Response({
+                'success': True,
+                'message': 'Password reset successful'
+            }, status=status.HTTP_200_OK)
+        
         return Response({
             'success': False,
             'error': serializer.errors

@@ -236,8 +236,6 @@ def search_products(request):
     
     except Exception as e:
         # Log the error for debugging
-        import logging
-        logger = logging.getLogger(__name__)
         logger.error(f"Search error: {str(e)}", exc_info=True)
         
         # Return a user-friendly error response
@@ -300,8 +298,6 @@ def search_suggestions(request):
     
     except Exception as e:
         # Log the error for debugging
-        import logging
-        logger = logging.getLogger(__name__)
         logger.error(f"Search suggestions error: {str(e)}", exc_info=True)
         
         # Return empty suggestions instead of an error
@@ -478,9 +474,6 @@ def mpesa_callback(request):
     Handle M-Pesa payment callback from Safaricom.
     This endpoint should be registered in your M-Pesa configuration.
     """
-    import logging
-    logger = logging.getLogger(__name__)
-    
     try:
         callback_data = request.data
         logger.info(f"M-Pesa Callback received: {callback_data}")

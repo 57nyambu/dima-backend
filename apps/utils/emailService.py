@@ -186,3 +186,114 @@ def modelGuide(user):
     }
 
     email = resend.Emails.send(params)
+
+
+def send_reset_code_email(data):
+    """Send password reset code via email"""
+    params: resend.Emails.SendParams = {
+        "from": "Finarchitect <support@finarchitect.site>",
+        "to": [data['email']],
+        "subject": "Your Password Reset Code",
+        "html": f"""
+            <html>
+            <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f9f9f9;">
+                <table width="100%" style="border-collapse: collapse; background-color: #f9f9f9;">
+                    <tr>
+                        <td align="center">
+                            <table width="600px" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15); margin: 20px 0;">
+                                <tr>
+                                    <td style="background-color: #0078d4; color: #ffffff; padding: 20px; text-align: center;">
+                                        <h1 style="margin: 0; font-size: 24px;">Password Reset Code</h1>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 30px; color: #333;">
+                                        <p style="font-size: 16px; line-height: 1.5;">Hi {data.get('first_name', 'User')},</p>
+                                        <p style="font-size: 16px; line-height: 1.5;">
+                                            We received a request to reset your password. Use the code below to complete the process:
+                                        </p>
+                                        <div style="text-align: center; margin: 30px 0;">
+                                            <div style="display: inline-block; background-color: #f0f0f0; padding: 20px 40px; border-radius: 8px; border: 2px dashed #0078d4;">
+                                                <span style="font-size: 32px; font-weight: bold; color: #0078d4; letter-spacing: 8px;">{data['reset_code']}</span>
+                                            </div>
+                                        </div>
+                                        <p style="font-size: 16px; line-height: 1.5;">
+                                            This code will expire in <strong>{data.get('expires_in', '10 minutes')}</strong>.
+                                        </p>
+                                        <p style="font-size: 16px; line-height: 1.5;">
+                                            If you didn't request this password reset, please ignore this email. Your password will remain unchanged.
+                                        </p>
+                                        <p style="font-size: 16px; line-height: 1.5; margin-top: 30px;">
+                                            For security reasons, never share this code with anyone.
+                                        </p>
+                                        <p style="font-size: 16px; line-height: 1.5;">Best Regards,</p>
+                                        <p style="font-size: 16px; line-height: 1.5;">The Finarchitect Team</p>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="background-color: #f1f1f1; text-align: center; padding: 15px; font-size: 14px; color: #888;">
+                                        <p style="margin: 0;">If you need help, contact us at <a href="mailto:support@finarchitect.site" style="color: #0078d4;">support@finarchitect.site</a></p>
+                                        <p style="margin: 10px 0 0 0;">&copy; 2025 Finarchitect. All rights reserved.</p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+            </body>
+            </html>
+        """
+    }
+    
+    email = resend.Emails.send(params)
+    return email
+
+
+def send_reset_code_sms(data):
+    """
+    Send password reset code via SMS
+    
+    This is a placeholder function. You'll need to integrate with an SMS provider
+    such as:
+    - Twilio (https://www.twilio.com/)
+    - Africa's Talking (https://africastalking.com/)
+    - Vonage (https://www.vonage.com/)
+    - AWS SNS (https://aws.amazon.com/sns/)
+    
+    Example implementation with Africa's Talking:
+    
+    import africastalking
+    from django.conf import settings
+    
+    # Initialize Africa's Talking
+    africastalking.initialize(
+        username=settings.AFRICASTALKING_USERNAME,
+        api_key=settings.AFRICASTALKING_API_KEY
+    )
+    sms = africastalking.SMS
+    
+    message = f"Your Finarchitect password reset code is: {data['reset_code']}. Valid for {data.get('expires_in', '10 minutes')}."
+    
+    response = sms.send(
+        message=message,
+        recipients=[data['phone_number']]
+    )
+    
+    return response
+    """
+    
+    # TODO: Implement actual SMS sending logic with your SMS provider
+    # For now, this is a placeholder that logs the SMS
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    message = f"Your Finarchitect password reset code is: {data['reset_code']}. Valid for {data.get('expires_in', '10 minutes')}. Never share this code."
+    
+    logger.info(f"SMS to {data['phone_number']}: {message}")
+    
+    # Simulate successful send for development
+    return {
+        'success': True,
+        'message': 'SMS sent successfully (placeholder)',
+        'phone_number': data['phone_number']
+    }

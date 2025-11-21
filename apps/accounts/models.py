@@ -3,6 +3,10 @@ from django.db import models
 from .managers import CustomUserManager
 from django.db.models import PROTECT
 from django.utils.text import slugify
+from django.utils import timezone
+from datetime import timedelta
+import random
+import string
 
 class Role(models.Model):
     name = models.CharField(max_length=255, default='customer')
@@ -27,6 +31,15 @@ class CustomUser(AbstractBaseUser):
     is_verified = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
+    
+    # Google OAuth fields
+    google_id = models.CharField(max_length=255, null=True, blank=True, unique=True)
+    auth_provider = models.CharField(max_length=50, default='email')  # 'email' or 'google'
+    
+    # Password reset code fields
+    reset_code = models.CharField(max_length=6, null=True, blank=True)
+    reset_code_created_at = models.DateTimeField(null=True, blank=True)
+    reset_code_expires_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         permissions = [
@@ -65,4 +78,32 @@ class CustomUser(AbstractBaseUser):
 
     def tokens(self):
         pass
+    
+    def generate_reset_code(self, expiry_minutes=10):
+        """Generate a 6-digit reset code that expires in specified minutes"""
+        self.reset_code = ''.join(random.choices(string.digits, k=6))
+        self.reset_code_created_at = timezone.now()
+        self.reset_code_expires_at = timezone.now() + timedelta(minutes=expiry_minutes)
+        self.save(update_fields=['reset_code', 'reset_code_created_at', 'reset_code_expires_at'])
+        return self.reset_code
+    
+    def verify_reset_code(self, code):
+        """Verify if the reset code is valid and not expired"""
+        if not self.reset_code or not self.reset_code_expires_at:
+            return False
+        
+        if self.reset_code != code:
+            return False
+        
+        if timezone.now() > self.reset_code_expires_at:
+            return False
+        
+        return True
+    
+    def clear_reset_code(self):
+        """Clear reset code after successful password reset"""
+        self.reset_code = None
+        self.reset_code_created_at = None
+        self.reset_code_expires_at = None
+        self.save(update_fields=['reset_code', 'reset_code_created_at', 'reset_code_expires_at'])
 

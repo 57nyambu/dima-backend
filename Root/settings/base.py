@@ -296,6 +296,10 @@ MARKETPLACE_SETTINGS = {
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 DEFAULT_FROM_EMAIL = 'noreply@yourmarketplace.com'
 
+# Google Confs
+GOOGLE_CLIENT_ID = env('GOOGLE_CLIENT_ID')
+GOOGLE_CLIENT_SECRET = env('GOOGLE_CLIENT_SECRET')
+
 # PostgreSQL full-text search (optional but recommended)
 #if 'postgresql' in DATABASES['default']['ENGINE']:
 #    INSTALLED_APPS.append('django.contrib.postgres')

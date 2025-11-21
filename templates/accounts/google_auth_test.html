@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google OAuth Test - Finarchitect</title>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 900px;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .auth-section {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .auth-section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 22px;
+        }
+
+        #buttonDiv {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .status.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+
+        .debug-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 30px;
+        }
+
+        .debug-section h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .debug-section h3::before {
+            content: "🐛";
+            font-size: 20px;
+        }
+
+        .debug-item {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .debug-item h4 {
+            color: #667eea;
+            font-size: 14px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .debug-item pre {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 12px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+            line-height: 1.5;
+            margin: 0;
+        }
+
+        .debug-item .value {
+            color: #495057;
+            font-size: 14px;
+            word-break: break-all;
+        }
+
+        .stage-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: white;
+            border-radius: 6px;
+            border-left: 4px solid #6c757d;
+        }
+
+        .stage-indicator.active {
+            border-left-color: #ffc107;
+            background: #fff3cd;
+        }
+
+        .stage-indicator.completed {
+            border-left-color: #28a745;
+            background: #d4edda;
+        }
+
+        .stage-indicator.failed {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+
+        .stage-indicator .stage-number {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #6c757d;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .stage-indicator.active .stage-number {
+            background: #ffc107;
+            color: #000;
+        }
+
+        .stage-indicator.completed .stage-number {
+            background: #28a745;
+        }
+
+        .stage-indicator.failed .stage-number {
+            background: #dc3545;
+        }
+
+        .stage-indicator .stage-text {
+            flex: 1;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .config-info {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .config-info h4 {
+            color: #856404;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .config-info p {
+            color: #856404;
+            font-size: 13px;
+            margin: 5px 0;
+        }
+
+        .config-info code {
+            background: #fff;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 10px auto;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .token-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 Google OAuth Test Page</h1>
+            <p>Test and debug Google authentication integration</p>
+        </div>
+
+        <div class="content">
+            <!-- Configuration Info -->
+            <div class="config-info">
+                <h4>⚙️ Configuration Status</h4>
+                <p><strong>Current Origin:</strong> <code id="currentOrigin"></code></p>
+                <p><strong>Google Client ID:</strong> <code id="clientIdDisplay"></code></p>
+                <p><strong>Backend URL:</strong> <code id="backendUrlDisplay"></code></p>
+                <hr style="margin: 10px 0; border: none; border-top: 1px solid #ffeaa7;">
+                <p style="margin-top: 10px;"><strong>⚠️ If button doesn't load:</strong></p>
+                <p>1. Add <code id="currentOrigin2"></code> to <strong>Authorized JavaScript origins</strong> in Google Console</p>
+                <p>2. Check that your Client ID is correct</p>
+                <p>3. Wait 5-10 minutes after making changes in Google Console</p>
+            </div>
+
+            <!-- Authentication Section -->
+            <div class="auth-section">
+                <h2>Sign in with Google</h2>
+                <div id="buttonDiv"></div>
+                <div class="loader" id="loader"></div>
+                <div class="status" id="statusMessage"></div>
+            </div>
+
+            <!-- Debug Section -->
+            <div class="debug-section">
+                <h3>Debug Information</h3>
+
+                <!-- Stages -->
+                <div class="stage-indicator" id="stage1">
+                    <div class="stage-number">1</div>
+                    <div class="stage-text">Google Sign-In Button Loaded</div>
+                </div>
+                <div class="stage-indicator" id="stage2">
+                    <div class="stage-number">2</div>
+                    <div class="stage-text">User Clicked Sign In</div>
+                </div>
+                <div class="stage-indicator" id="stage3">
+                    <div class="stage-number">3</div>
+                    <div class="stage-text">Google Credential Received</div>
+                </div>
+                <div class="stage-indicator" id="stage4">
+                    <div class="stage-number">4</div>
+                    <div class="stage-text">Backend Authentication Request</div>
+                </div>
+                <div class="stage-indicator" id="stage5">
+                    <div class="stage-number">5</div>
+                    <div class="stage-text">Authentication Success</div>
+                </div>
+
+                <!-- Debug Items -->
+                <div class="debug-item" id="googleIdTokenSection" style="display: none;">
+                    <h4>📝 Google ID Token (JWT)</h4>
+                    <pre id="googleIdToken"></pre>
+                    <div class="token-actions">
+                        <button class="btn btn-primary" onclick="copyToClipboard('googleIdToken')">Copy Token</button>
+                        <button class="btn btn-secondary" onclick="decodeToken()">Decode Token</button>
+                    </div>
+                </div>
+
+                <div class="debug-item" id="decodedTokenSection" style="display: none;">
+                    <h4>🔍 Decoded Token Payload</h4>
+                    <pre id="decodedToken"></pre>
+                </div>
+
+                <div class="debug-item" id="backendRequestSection" style="display: none;">
+                    <h4>📤 Backend Request</h4>
+                    <pre id="backendRequest"></pre>
+                </div>
+
+                <div class="debug-item" id="backendResponseSection" style="display: none;">
+                    <h4>📥 Backend Response</h4>
+                    <pre id="backendResponse"></pre>
+                </div>
+
+                <div class="debug-item" id="userInfoSection" style="display: none;">
+                    <h4>👤 User Information</h4>
+                    <div class="value" id="userInfo"></div>
+                </div>
+
+                <div class="debug-item" id="tokensSection" style="display: none;">
+                    <h4>🎫 JWT Tokens</h4>
+                    <pre id="jwtTokens"></pre>
+                    <div class="token-actions">
+                        <button class="btn btn-primary" onclick="copyToClipboard('jwtTokens')">Copy Tokens</button>
+                        <button class="btn btn-secondary" onclick="testAuthenticatedRequest()">Test API Request</button>
+                    </div>
+                </div>
+
+                <div class="debug-item" id="errorsSection" style="display: none;">
+                    <h4>❌ Errors</h4>
+                    <pre id="errors"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ========== CONFIGURATION ==========
+        // Django template variables - automatically loaded from settings
+        const GOOGLE_CLIENT_ID = '{{ GOOGLE_CLIENT_ID }}';
+        const BACKEND_URL = window.location.origin + '/api/auth/google/';
+        
+        // Show current origin and configuration
+        document.getElementById('currentOrigin').textContent = window.location.origin;
+        document.getElementById('currentOrigin2').textContent = window.location.origin;
+        document.getElementById('clientIdDisplay').textContent = GOOGLE_CLIENT_ID || 'Not set';
+        document.getElementById('backendUrlDisplay').textContent = BACKEND_URL;
+
+        // ========== STATE ==========
+        let googleCredential = null;
+        let backendTokens = null;
+
+        // ========== UTILITY FUNCTIONS ==========
+        function updateStage(stageId, status) {
+            const stage = document.getElementById(stageId);
+            stage.classList.remove('active', 'completed', 'failed');
+            stage.classList.add(status);
+        }
+
+        function showStatus(message, type) {
+            const statusEl = document.getElementById('statusMessage');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+            statusEl.style.display = 'block';
+        }
+
+        function showDebugItem(itemId) {
+            document.getElementById(itemId).style.display = 'block';
+        }
+
+        function showLoader(show) {
+            document.getElementById('loader').style.display = show ? 'block' : 'none';
+        }
+
+        function copyToClipboard(elementId) {
+            const text = document.getElementById(elementId).textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Copied to clipboard!');
+            });
+        }
+
+        function decodeToken() {
+            if (!googleCredential) return;
+            
+            try {
+                const parts = googleCredential.split('.');
+                const payload = JSON.parse(atob(parts[1]));
+                
+                document.getElementById('decodedToken').textContent = JSON.stringify(payload, null, 2);
+                showDebugItem('decodedTokenSection');
+            } catch (error) {
+                console.error('Failed to decode token:', error);
+            }
+        }
+
+        async function testAuthenticatedRequest() {
+            if (!backendTokens || !backendTokens.access_token) {
+                alert('No access token available');
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:8000/api/accounts/user/profile/', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${backendTokens.access_token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                alert('API Test Result:\n\n' + JSON.stringify(data, null, 2));
+            } catch (error) {
+                alert('API Test Failed:\n\n' + error.message);
+            }
+        }
+
+        // ========== GOOGLE OAUTH CALLBACK ==========
+        function handleCredentialResponse(response) {
+            console.log('🎉 Google credential received:', response);
+            
+            updateStage('stage2', 'completed');
+            updateStage('stage3', 'completed');
+            updateStage('stage4', 'active');
+            
+            googleCredential = response.credential;
+            
+            // Show Google ID Token
+            document.getElementById('googleIdToken').textContent = googleCredential;
+            showDebugItem('googleIdTokenSection');
+            
+            showStatus('Google sign-in successful! Authenticating with backend...', 'info');
+            showLoader(true);
+            
+            // Send to backend
+            authenticateWithBackend(googleCredential);
+        }
+
+        // ========== BACKEND AUTHENTICATION ==========
+        async function authenticateWithBackend(idToken) {
+            const requestData = { id_token: idToken };
+            
+            // Show request data
+            document.getElementById('backendRequest').textContent = JSON.stringify({
+                url: BACKEND_URL,
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: requestData
+            }, null, 2);
+            showDebugItem('backendRequestSection');
+
+            try {
+                const response = await fetch(BACKEND_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestData)
+                });
+
+                const data = await response.json();
+                
+                // Show response
+                document.getElementById('backendResponse').textContent = JSON.stringify(data, null, 2);
+                showDebugItem('backendResponseSection');
+
+                showLoader(false);
+
+                if (data.success) {
+                    updateStage('stage4', 'completed');
+                    updateStage('stage5', 'completed');
+                    
+                    backendTokens = {
+                        access_token: data.access_token,
+                        refresh_token: data.refresh_token
+                    };
+
+                    showStatus('✅ Authentication successful!', 'success');
+
+                    // Show user info
+                    const userHtml = `
+                        <p><strong>Email:</strong> ${data.user.email}</p>
+                        <p><strong>Name:</strong> ${data.user.first_name} ${data.user.last_name}</p>
+                        <p><strong>Username:</strong> ${data.user.username}</p>
+                        <p><strong>Role:</strong> ${data.role}</p>
+                        <p><strong>New User:</strong> ${data.is_new_user ? 'Yes' : 'No'}</p>
+                    `;
+                    document.getElementById('userInfo').innerHTML = userHtml;
+                    showDebugItem('userInfoSection');
+
+                    // Show tokens
+                    document.getElementById('jwtTokens').textContent = JSON.stringify({
+                        access_token: data.access_token,
+                        refresh_token: data.refresh_token
+                    }, null, 2);
+                    showDebugItem('tokensSection');
+
+                    // Store tokens in localStorage for testing
+                    localStorage.setItem('access_token', data.access_token);
+                    localStorage.setItem('refresh_token', data.refresh_token);
+
+                } else {
+                    updateStage('stage4', 'failed');
+                    updateStage('stage5', 'failed');
+                    
+                    showStatus('❌ Backend authentication failed', 'error');
+                    
+                    document.getElementById('errors').textContent = JSON.stringify(data, null, 2);
+                    showDebugItem('errorsSection');
+                }
+
+            } catch (error) {
+                showLoader(false);
+                updateStage('stage4', 'failed');
+                updateStage('stage5', 'failed');
+                
+                console.error('Backend authentication error:', error);
+                showStatus('❌ Failed to connect to backend: ' + error.message, 'error');
+                
+                document.getElementById('errors').textContent = error.stack || error.message;
+                showDebugItem('errorsSection');
+            }
+        }
+
+        // ========== INITIALIZE GOOGLE SIGN-IN ==========
+        window.onload = function () {
+            console.log('🚀 Initializing Google Sign-In...');
+            console.log('Client ID:', GOOGLE_CLIENT_ID);
+            console.log('Backend URL:', BACKEND_URL);
+
+            if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID === 'YOUR_GOOGLE_CLIENT_ID_HERE.apps.googleusercontent.com' || GOOGLE_CLIENT_ID === '') {
+                showStatus('⚠️ GOOGLE_CLIENT_ID not configured in Django settings', 'error');
+                document.getElementById('errors').textContent = 'Configuration Error: GOOGLE_CLIENT_ID not set in Django settings.\n\n' +
+                    'Please ensure GOOGLE_CLIENT_ID is set in your .env file and Django settings (Root/settings/base.py).\n\n' +
+                    'Current value: ' + (GOOGLE_CLIENT_ID || 'Empty');
+                showDebugItem('errorsSection');
+                return;
+            }
+
+            try {
+                google.accounts.id.initialize({
+                    client_id: GOOGLE_CLIENT_ID,
+                    callback: handleCredentialResponse,
+                    auto_select: false,
+                    cancel_on_tap_outside: true
+                });
+
+                google.accounts.id.renderButton(
+                    document.getElementById("buttonDiv"),
+                    {
+                        theme: "outline",
+                        size: "large",
+                        text: "signin_with",
+                        shape: "rectangular",
+                        width: 280
+                    }
+                );
+
+                updateStage('stage1', 'completed');
+                showStatus('Ready to sign in', 'info');
+                
+                console.log('✅ Google Sign-In button rendered successfully');
+
+            } catch (error) {
+                console.error('❌ Failed to initialize Google Sign-In:', error);
+                showStatus('Failed to initialize Google Sign-In', 'error');
+                updateStage('stage1', 'failed');
+                
+                document.getElementById('errors').textContent = error.stack || error.message;
+                showDebugItem('errorsSection');
+            }
+        };
+
+        // Log page load
+        console.log('📄 Google OAuth Test Page Loaded');
+        console.log('Origin:', window.location.origin);
+    </script>
+</body>
+</html>
