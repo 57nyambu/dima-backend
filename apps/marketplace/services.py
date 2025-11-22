@@ -84,15 +84,25 @@ class OrderSplitterService:
                 # Calculate order total for this vendor
                 order_total = sum(item['price'] * item['quantity'] for item in items)
                 
-                # Create order
+                # Create order with customer and delivery information
                 order = Order.objects.create(
-                    user=buyer,  # The field is 'user' not 'buyer'
+                    user=buyer,
                     business=business,
-                    total=order_total,  # The field is 'total' not 'total_amount'
-                    # Store shipping details in a way compatible with current model
-                    # You may need to add these fields to Order model or store differently
+                    total=order_total,
                     payment_method=payment_method,
-                    status='pending'
+                    status='pending',
+                    # Store customer information from shipping_details
+                    customer_first_name=buyer.first_name,
+                    customer_last_name=buyer.last_name,
+                    customer_email=buyer.email,
+                    customer_phone=shipping_details.get('shipping_phone', ''),
+                    # Store delivery information
+                    delivery_county=shipping_details.get('shipping_county', ''),
+                    delivery_town=shipping_details.get('shipping_city', ''),
+                    delivery_location=shipping_details.get('shipping_address', ''),
+                    delivery_notes=shipping_details.get('shipping_notes', ''),
+                    # Set shipping cost (default 200 as per model)
+                    shipping_cost=200
                 )
                 
                 # Create order items (if OrderItem model exists)

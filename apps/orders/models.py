@@ -6,23 +6,53 @@ from apps.business.models import Business
 class Order(models.Model):
     STATUS_CHOICES = [
         ('pending', 'Pending'),
+        ('confirmed', 'Confirmed'),
+        ('processing', 'Processing'),
         ('shipped', 'Shipped'),
         ('delivered', 'Delivered'),
         ('cancelled', 'Cancelled'),
     ]
+    
+    PAYMENT_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('paid', 'Paid'),
+        ('failed', 'Failed'),
+        ('refunded', 'Refunded'),
+    ]
+    
+    # Core order fields
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='orders')
     business = models.ForeignKey(Business, on_delete=models.CASCADE, related_name='orders')
     order_number = models.CharField(max_length=20, unique=True, null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     total = models.DecimalField(max_digits=10, decimal_places=2)
-    mpesa_code = models.CharField(max_length=20, blank=True)
+    
+    # Customer information (stored at order time)
+    customer_first_name = models.CharField(max_length=225, blank=True)
+    customer_last_name = models.CharField(max_length=225, blank=True)
+    customer_email = models.EmailField(blank=True)
+    customer_phone = models.CharField(max_length=15, blank=True)
+    
+    # Delivery information
+    delivery_county = models.CharField(max_length=100, blank=True)
+    delivery_town = models.CharField(max_length=100, blank=True)
+    delivery_location = models.CharField(max_length=255, blank=True)
+    delivery_notes = models.TextField(blank=True)
+    
+    # Shipping details
     shipping_method = models.CharField(max_length=50, blank=True, null=True)
-    shipping_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    shipping_cost = models.DecimalField(max_digits=10, decimal_places=2, default=200)
     estimated_delivery = models.DateTimeField(blank=True, null=True)
-    payment_method = models.CharField(max_length=30, blank=True, null=True)
-    qsetent_status = models.CharField(max_length=30, blank=True, null=True)
     tracking_number = models.CharField(max_length=50, blank=True, null=True)
     courier = models.CharField(max_length=50, blank=True, null=True)
+    
+    # Payment information
+    payment_method = models.CharField(max_length=30, blank=True, null=True)
+    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='pending')
+    mpesa_code = models.CharField(max_length=50, blank=True)
+    qsetent_status = models.CharField(max_length=30, blank=True, null=True)  # Legacy field
+    
+    # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -52,6 +82,15 @@ class Order(models.Model):
             summary[vendor]['total_sales'] += item.price * item.quantity
             summary[vendor]['total_items'] += item.quantity
         return summary
+
+    def get_customer_name(self):
+        """Returns the full name of the customer at order time."""
+        return f"{self.customer_first_name} {self.customer_last_name}".strip()
+    
+    def get_delivery_address(self):
+        """Returns the formatted delivery address."""
+        parts = [self.delivery_location, self.delivery_town, self.delivery_county]
+        return ", ".join([p for p in parts if p])
 
     def __str__(self):
         return f"Order {self.id} - {self.user.username} - {self.business.name} - {self.status}"

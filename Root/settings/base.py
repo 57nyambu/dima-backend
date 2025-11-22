@@ -72,7 +72,7 @@ REST_FRAMEWORK = {
 APPEND_SLASH = True
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=2),  # Short-lived access tokens
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),  # Short-lived access tokens
     'REFRESH_TOKEN_LIFETIME': timedelta(days=10),     # Longer-lived refresh tokens
     'ROTATE_REFRESH_TOKENS': True,                  # Issue a new refresh token on every use
     'BLACKLIST_AFTER_ROTATION': True,               # Blacklist old refresh tokens if rotated
@@ -257,6 +257,7 @@ STATICFILES_DIRS = [
 MPESA_CONSUMER_KEY = env('MPESA_CONSUMER_KEY')
 MPESA_CONSUMER_SECRET = env('MPESA_CONSUMER_SECRET')
 MPESA_SHORTCODE = env('MPESA_SHORTCODE')
+MPESA_PASSKEY = env('MPESA_PASSKEY')
 
 
 # Cache configuration (recommended for marketplace performance)

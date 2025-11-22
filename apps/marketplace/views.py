@@ -458,9 +458,9 @@ def process_checkout(request):
                     
                     # Store checkout request ID for callback matching
                     for order in orders:
-                        # Store in mpesa_code field temporarily (or add new field via migration)
                         order.mpesa_code = mpesa_response.get('CheckoutRequestID')
-                        order.save(update_fields=['mpesa_code'])
+                        order.payment_status = 'pending'
+                        order.save(update_fields=['mpesa_code', 'payment_status'])
                 else:
                     response_data['payment_info'] = {
                         'provider': 'M-Pesa',
@@ -494,6 +494,11 @@ def process_checkout(request):
             }
         
         elif payment_method == 'cod':
+            # Set payment_status to pending for COD orders
+            for order in orders:
+                order.payment_status = 'pending'
+                order.save(update_fields=['payment_status'])
+            
             response_data['payment_info'] = {
                 'provider': 'Cash on Delivery',
                 'status': 'confirmed',
