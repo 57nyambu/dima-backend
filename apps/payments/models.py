@@ -2,13 +2,17 @@ from django.db import models
 from apps.orders.models import Order
 
 class Payment(models.Model):
-    """Core payment model with MPesa support"""
+    """Core payment model with multiple payment method support"""
     MPESA = 'mpesa'
-    CASH = 'cash'
+    AIRTEL = 'airtel'
+    PAYPAL = 'paypal'
+    COD = 'cod'
     CARD = 'card'
     PAYMENT_METHODS = [
         (MPESA, 'M-Pesa'),
-        (CASH, 'Cash on Delivery'),
+        (AIRTEL, 'Airtel Money'),
+        (PAYPAL, 'PayPal'),
+        (COD, 'Cash on Delivery'),
         (CARD, 'Credit/Debit Card'),
     ]
 
@@ -19,6 +23,14 @@ class Payment(models.Model):
     # M-Pesa Specific Fields
     mpesa_code = models.CharField(max_length=20, blank=True)  # e.g. NLJ7RT56
     mpesa_phone = models.CharField(max_length=15, blank=True)  # Format: 254722123456
+    
+    # Airtel Money Specific Fields
+    airtel_phone = models.CharField(max_length=15, blank=True)  # Format: 254722123456
+    airtel_transaction_id = models.CharField(max_length=50, blank=True)
+    
+    # PayPal Specific Fields
+    paypal_transaction_id = models.CharField(max_length=100, blank=True)
+    paypal_email = models.EmailField(blank=True)
     
     # Payment lifecycle
     is_confirmed = models.BooleanField(default=False)

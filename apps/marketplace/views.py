@@ -331,10 +331,11 @@ class OrderDetailView(generics.RetrieveAPIView):
 def process_checkout(request):
     """
     Process checkout with cart data from frontend.
-    Supports M-Pesa, Airtel Money, and Card payments.
+    Supports M-Pesa, Airtel Money, PayPal, and Cash on Delivery.
     """
     from .serializers import CheckoutSerializer, CheckoutResponseSerializer
     from apps.payments.mpesa import initiate_stk_push
+    from apps.shipping.models import CustomerDeliveryAddress
     
     # Validate checkout data
     serializer = CheckoutSerializer(data=request.data)
@@ -347,18 +348,62 @@ def process_checkout(request):
     validated_data = serializer.validated_data
     
     try:
+        # Update customer profile if provided
+        customer_data = validated_data.get('customer', {})
+        user = request.user
+        
+        # Update user profile with customer data
+        if customer_data.get('firstName'):
+            user.first_name = customer_data['firstName']
+        if customer_data.get('lastName'):
+            user.last_name = customer_data['lastName']
+        if customer_data.get('phone'):
+            user.phone_number = customer_data['phone']
+        user.save()
+        
+        # Save delivery address if not already saved
+        delivery_data = validated_data.get('delivery', {})
+        county = delivery_data.get('county')
+        town = delivery_data.get('town')
+        specific_location = delivery_data.get('specificLocation')
+        delivery_notes = delivery_data.get('deliveryNotes', '')
+        
+        # Check if this address already exists for the user
+        existing_address = CustomerDeliveryAddress.objects.filter(
+            user=user,
+            county=county,
+            town=town,
+            specific_location=specific_location
+        ).first()
+        
+        if not existing_address:
+            # Create new delivery address
+            is_first_address = not CustomerDeliveryAddress.objects.filter(user=user).exists()
+            CustomerDeliveryAddress.objects.create(
+                user=user,
+                county=county,
+                town=town,
+                specific_location=specific_location,
+                delivery_notes=delivery_notes,
+                is_default=is_first_address  # Set as default if it's the first address
+            )
+        
+        # Extract payment details
+        payment_data = validated_data.get('payment', {})
+        payment_method = payment_data.get('method')
+        
         # Create orders from cart items
         orders = OrderSplitterService.create_orders_from_cart(
             buyer=request.user,
             cart_items=validated_data['items'],
             shipping_details={
-                'shipping_address': validated_data['shipping_address'],
-                'shipping_city': validated_data['shipping_city'],
-                'shipping_county': validated_data['shipping_county'],
-                'shipping_phone': validated_data['shipping_phone'],
-                'shipping_notes': validated_data.get('shipping_notes', '')
+                'shipping_address': specific_location,
+                'shipping_city': town,
+                'shipping_county': county,
+                'shipping_phone': customer_data.get('phone'),
+                'shipping_notes': delivery_notes
             },
-            payment_method=validated_data['payment_method']
+            payment_method=payment_method
         )
         
         if not orders:
@@ -391,11 +436,12 @@ def process_checkout(request):
         }
         
         # Handle M-Pesa payment
-        if validated_data['payment_method'] == 'mpesa':
+        if payment_method == 'mpesa':
+            mpesa_phone = payment_data.get('mpesaNumber')
             try:
                 # Initiate M-Pesa STK Push
                 mpesa_response = initiate_stk_push(
-                    phone_number=validated_data['mpesa_phone'],
+                    phone_number=mpesa_phone,
                     amount=int(total_amount),
                     account_reference=f"ORDER-{'-'.join([str(o.id) for o in orders])}",
                     transaction_desc=f"Payment for {len(orders)} order(s)"
@@ -431,18 +477,27 @@ def process_checkout(request):
                     'message': 'Payment initiation failed. Please try again or contact support.'
                 }
         
-        elif validated_data['payment_method'] == 'airtel_money':
+        elif payment_method == 'airtel':
+            airtel_phone = payment_data.get('airtelNumber')
             response_data['payment_info'] = {
                 'provider': 'Airtel Money',
                 'status': 'pending',
-                'message': 'Airtel Money integration coming soon. Please use M-Pesa or card payment.'
+                'message': 'Airtel Money integration coming soon. Please use M-Pesa or Cash on Delivery.',
+                'phone': airtel_phone
             }
         
-        elif validated_data['payment_method'] == 'card':
+        elif payment_method == 'paypal':
             response_data['payment_info'] = {
-                'provider': 'Card',
+                'provider': 'PayPal',
                 'status': 'pending',
-                'message': 'Card payment integration coming soon. Please use M-Pesa.'
+                'message': 'PayPal integration coming soon. Please use M-Pesa or Cash on Delivery.'
+            }
+        
+        elif payment_method == 'cod':
+            response_data['payment_info'] = {
+                'provider': 'Cash on Delivery',
+                'status': 'confirmed',
+                'message': 'Order placed successfully. Pay when you receive your order.'
             }
         
         # Send notifications

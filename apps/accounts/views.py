@@ -375,3 +375,97 @@ class UserDetailView(APIView):
             return Response({'success': True, 'data': serializer.data
                     }, status=status.HTTP_200_OK)
         except: return Response({'success': False, 'error': 'User not found'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class CustomerProfileView(APIView):
+    """Get and update customer profile information for checkout pre-fill"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """Get customer profile data"""
+        from .serializers import CustomerProfileSerializer
+        
+        user = request.user
+        serializer = CustomerProfileSerializer(user)
+        
+        return Response({
+            'success': True,
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+    
+    def patch(self, request):
+        """Update customer profile data"""
+        from .serializers import CustomerProfileSerializer
+        
+        user = request.user
+        serializer = CustomerProfileSerializer(user, data=request.data, partial=True)
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'success': True,
+                'message': 'Profile updated successfully',
+                'data': serializer.data
+            }, status=status.HTTP_200_OK)
+        
+        return Response({
+            'success': False,
+            'error': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class FullUserProfileView(APIView):
+    """Get and update comprehensive user profile data"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """Get complete user profile data"""
+        from .serializers import FullUserProfileSerializer
+        
+        user = request.user
+        serializer = FullUserProfileSerializer(user)
+        
+        return Response({
+            'success': True,
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+    
+    def patch(self, request):
+        """Update user profile data (partial update)"""
+        from .serializers import FullUserProfileSerializer
+        
+        user = request.user
+        serializer = FullUserProfileSerializer(user, data=request.data, partial=True)
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'success': True,
+                'message': 'Profile updated successfully',
+                'data': serializer.data
+            }, status=status.HTTP_200_OK)
+        
+        return Response({
+            'success': False,
+            'error': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    def post(self, request):
+        """Create/update profile data (handles missing fields)"""
+        from .serializers import FullUserProfileSerializer
+        
+        user = request.user
+        serializer = FullUserProfileSerializer(user, data=request.data, partial=True)
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'success': True,
+                'message': 'Profile saved successfully',
+                'data': serializer.data
+            }, status=status.HTTP_200_OK)
+        
+        return Response({
+            'success': False,
+            'error': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)

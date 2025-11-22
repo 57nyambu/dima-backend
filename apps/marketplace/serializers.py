@@ -600,11 +600,12 @@ class BannerSerializer(serializers.ModelSerializer):
 
 class CheckoutItemSerializer(serializers.Serializer):
     """Serializer for individual cart items from frontend"""
-    product_id = serializers.IntegerField()
+    id = serializers.IntegerField(source='product_id')
+    name = serializers.CharField(read_only=True)
     quantity = serializers.IntegerField(min_value=1)
     price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     
-    def validate_product_id(self, value):
+    def validate_id(self, value):
         """Validate that product exists and is active"""
         try:
             product = Product.objects.get(id=value, is_active=True)
@@ -613,7 +614,7 @@ class CheckoutItemSerializer(serializers.Serializer):
             raise serializers.ValidationError(f"Product with ID {value} not found or inactive")
     
     def validate(self, data):
-        """Validate stock availability"""
+        """Validate stock availability and set price"""
         try:
             product = Product.objects.get(id=data['product_id'])
             if product.stock_qty < data['quantity']:
@@ -621,69 +622,144 @@ class CheckoutItemSerializer(serializers.Serializer):
                     'quantity': f"Insufficient stock. Only {product.stock_qty} available for {product.name}"
                 })
             data['price'] = product.discounted_price if product.discounted_price > 0 else product.price
+            data['name'] = product.name
         except Product.DoesNotExist:
             raise serializers.ValidationError("Product not found")
         
         return data
 
 
-class CheckoutSerializer(serializers.Serializer):
-    """Serializer for checkout process - receives cart from frontend"""
-    items = CheckoutItemSerializer(many=True)
+class CheckoutCustomerSerializer(serializers.Serializer):
+    """Customer details for checkout"""
+    firstName = serializers.CharField(max_length=225, required=True)
+    lastName = serializers.CharField(max_length=225, required=True)
+    email = serializers.EmailField(required=True)
+    phone = serializers.CharField(max_length=15, required=True)
     
-    # Shipping details
-    shipping_address = serializers.CharField(max_length=500)
-    shipping_city = serializers.CharField(max_length=100)
-    shipping_county = serializers.CharField(max_length=100)
-    shipping_phone = serializers.CharField(max_length=15)
-    shipping_notes = serializers.CharField(max_length=500, required=False, allow_blank=True)
-    
-    # Payment details
-    payment_method = serializers.ChoiceField(
-        choices=['mpesa', 'airtel_money', 'card'],
-        default='mpesa'
-    )
-    mpesa_phone = serializers.CharField(max_length=13, required=False)
-    
-    def validate_items(self, value):
-        """Ensure cart is not empty"""
-        if not value:
-            raise serializers.ValidationError("Cart cannot be empty")
-        if len(value) > 50:  # Max items per order
-            raise serializers.ValidationError("Maximum 50 items allowed per order")
-        return value
-    
-    def validate_mpesa_phone(self, value):
-        """Validate Kenyan phone number format"""
+    def validate_phone(self, value):
+        """Validate phone number format"""
         if value:
-            # Remove any spaces or special characters
             phone = value.replace(' ', '').replace('-', '').replace('+', '')
-            
-            # Check if it's a valid Kenyan number (254XXXXXXXXX or 07XXXXXXXX or 01XXXXXXXX)
+            if phone.startswith('254'):
+                if len(phone) != 12:
+                    raise serializers.ValidationError("Invalid phone number format. Use 254XXXXXXXXX")
+            elif phone.startswith('0'):
+                if len(phone) != 10:
+                    raise serializers.ValidationError("Invalid phone number format. Use 07XXXXXXXX or 01XXXXXXXX")
+            else:
+                raise serializers.ValidationError("Invalid phone number format. Use 254XXXXXXXXX or 07XXXXXXXX")
+        return value
+
+
+class CheckoutDeliverySerializer(serializers.Serializer):
+    """Delivery details for checkout"""
+    county = serializers.CharField(max_length=100, required=True)
+    town = serializers.CharField(max_length=100, required=True)
+    specificLocation = serializers.CharField(max_length=255, required=True)
+    deliveryNotes = serializers.CharField(required=False, allow_blank=True)
+
+
+class CheckoutPaymentSerializer(serializers.Serializer):
+    """Payment details for checkout"""
+    method = serializers.ChoiceField(
+        choices=['mpesa', 'airtel', 'paypal', 'cod'],
+        required=True
+    )
+    mpesaNumber = serializers.CharField(max_length=15, required=False, allow_blank=True)
+    airtelNumber = serializers.CharField(max_length=15, required=False, allow_blank=True)
+    
+    def validate_mpesaNumber(self, value):
+        """Validate M-Pesa phone number format"""
+        if value:
+            phone = value.replace(' ', '').replace('-', '').replace('+', '')
             if phone.startswith('254'):
                 if len(phone) != 12:
                     raise serializers.ValidationError("Invalid M-Pesa phone number format. Use 254XXXXXXXXX")
             elif phone.startswith('0'):
                 if len(phone) != 10:
                     raise serializers.ValidationError("Invalid M-Pesa phone number format. Use 07XXXXXXXX or 01XXXXXXXX")
-                # Convert to international format
                 phone = '254' + phone[1:]
             else:
                 raise serializers.ValidationError("Invalid phone number format. Use 254XXXXXXXXX or 07XXXXXXXX")
-            
+            return phone
+        return value
+    
+    def validate_airtelNumber(self, value):
+        """Validate Airtel phone number format"""
+        if value:
+            phone = value.replace(' ', '').replace('-', '').replace('+', '')
+            if phone.startswith('254'):
+                if len(phone) != 12:
+                    raise serializers.ValidationError("Invalid Airtel phone number format. Use 254XXXXXXXXX")
+            elif phone.startswith('0'):
+                if len(phone) != 10:
+                    raise serializers.ValidationError("Invalid Airtel phone number format. Use 07XXXXXXXX or 01XXXXXXXX")
+                phone = '254' + phone[1:]
+            else:
+                raise serializers.ValidationError("Invalid phone number format. Use 254XXXXXXXXX or 07XXXXXXXX")
             return phone
         return value
     
     def validate(self, data):
         """Validate payment method requirements"""
-        if data.get('payment_method') == 'mpesa' and not data.get('mpesa_phone'):
+        method = data.get('method')
+        
+        if method == 'mpesa' and not data.get('mpesaNumber'):
             raise serializers.ValidationError({
-                'mpesa_phone': 'M-Pesa phone number is required for M-Pesa payments'
+                'mpesaNumber': 'M-Pesa phone number is required for M-Pesa payments'
             })
         
-        # If no mpesa_phone provided, default to shipping_phone
-        if data.get('payment_method') == 'mpesa' and not data.get('mpesa_phone'):
-            data['mpesa_phone'] = self.validate_mpesa_phone(data.get('shipping_phone'))
+        if method == 'airtel' and not data.get('airtelNumber'):
+            raise serializers.ValidationError({
+                'airtelNumber': 'Airtel phone number is required for Airtel Money payments'
+            })
+        
+        return data
+
+
+class CheckoutSerializer(serializers.Serializer):
+    """Complete checkout serializer with new structure"""
+    customer = CheckoutCustomerSerializer(required=True)
+    delivery = CheckoutDeliverySerializer(required=True)
+    payment = CheckoutPaymentSerializer(required=True)
+    items = CheckoutItemSerializer(many=True, required=True)
+    subtotal = serializers.DecimalField(max_digits=10, decimal_places=2, required=True)
+    shipping = serializers.DecimalField(max_digits=10, decimal_places=2, default=200)
+    total = serializers.DecimalField(max_digits=10, decimal_places=2, required=True)
+    
+    def validate_items(self, value):
+        """Ensure cart is not empty"""
+        if not value:
+            raise serializers.ValidationError("Cart cannot be empty")
+        if len(value) > 50:
+            raise serializers.ValidationError("Maximum 50 items allowed per order")
+        return value
+    
+    def validate(self, data):
+        """Validate totals match"""
+        items = data.get('items', [])
+        subtotal = data.get('subtotal', 0)
+        shipping = data.get('shipping', 200)
+        total = data.get('total', 0)
+        
+        # Calculate expected subtotal
+        calculated_subtotal = sum(
+            item.get('price', 0) * item.get('quantity', 0) 
+            for item in items
+        )
+        
+        # Validate subtotal matches
+        if abs(float(calculated_subtotal) - float(subtotal)) > 0.01:
+            raise serializers.ValidationError({
+                'subtotal': f'Subtotal mismatch. Expected {calculated_subtotal}, got {subtotal}'
+            })
+        
+        # Validate total matches
+        expected_total = calculated_subtotal + shipping
+        if abs(float(expected_total) - float(total)) > 0.01:
+            raise serializers.ValidationError({
+                'total': f'Total mismatch. Expected {expected_total}, got {total}'
+            })
         
         return data
 

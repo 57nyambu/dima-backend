@@ -252,3 +252,81 @@ class PasswordResetCodeVerifySerializer(serializers.Serializer):
         
         data['user'] = user
         return data
+
+
+class CustomerProfileSerializer(serializers.ModelSerializer):
+    """Serializer for customer profile information used in checkout"""
+    class Meta:
+        model = CustomUser
+        fields = ['first_name', 'last_name', 'email', 'phone_number']
+        read_only_fields = ['email']
+    
+    def validate_phone_number(self, value):
+        """Validate phone number format"""
+        if value:
+            # Remove any spaces or special characters
+            phone = value.replace(' ', '').replace('-', '').replace('+', '')
+            
+            # Check if it's a valid Kenyan number (254XXXXXXXXX or 07XXXXXXXX or 01XXXXXXXX)
+            if phone.startswith('254'):
+                if len(phone) != 12:
+                    raise serializers.ValidationError("Invalid phone number format. Use 254XXXXXXXXX")
+            elif phone.startswith('0'):
+                if len(phone) != 10:
+                    raise serializers.ValidationError("Invalid phone number format. Use 07XXXXXXXX or 01XXXXXXXX")
+            else:
+                raise serializers.ValidationError("Invalid phone number format. Use 254XXXXXXXXX or 07XXXXXXXX")
+            
+        return value
+
+
+class FullUserProfileSerializer(serializers.ModelSerializer):
+    """Comprehensive user profile serializer with all user data"""
+    role_name = serializers.CharField(source='role.name', read_only=True)
+    is_business_owner = serializers.BooleanField(read_only=True)
+    is_business_member = serializers.BooleanField(read_only=True)
+    
+    class Meta:
+        model = CustomUser
+        fields = [
+            'id',
+            'email',
+            'username',
+            'first_name',
+            'last_name',
+            'phone_number',
+            'date_joined',
+            'last_login',
+            'is_active',
+            'is_seller',
+            'is_verified',
+            'role_name',
+            'auth_provider',
+            'is_business_owner',
+            'is_business_member'
+        ]
+        read_only_fields = [
+            'id',
+            'email',
+            'date_joined',
+            'last_login',
+            'is_verified',
+            'role_name',
+            'auth_provider',
+            'is_business_owner',
+            'is_business_member'
+        ]
+    
+    def validate_phone_number(self, value):
+        """Validate phone number format"""
+        if value:
+            phone = value.replace(' ', '').replace('-', '').replace('+', '')
+            if phone.startswith('254'):
+                if len(phone) != 12:
+                    raise serializers.ValidationError("Invalid phone number format. Use 254XXXXXXXXX")
+            elif phone.startswith('0'):
+                if len(phone) != 10:
+                    raise serializers.ValidationError("Invalid phone number format. Use 07XXXXXXXX or 01XXXXXXXX")
+            else:
+                raise serializers.ValidationError("Invalid phone number format. Use 254XXXXXXXXX or 07XXXXXXXX")
+        return value
