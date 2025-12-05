@@ -48,6 +48,8 @@ class IsAdminUser(permissions.BasePermission):
 
 class RoleApiView(APIView):
     permission_classes = [IsAdminUser]
+    serializer_class = RoleSerializer
+    
     def post(self, request):
         role = request.data
         serializer = RoleSerializer(data=role)
@@ -313,8 +315,8 @@ class PasswordResetCodeVerifyView(APIView):
     
 
 class UpdateUserView(APIView):
-
     permission_classes = [permissions.IsAuthenticated]  # Ensure that only authenticated users can access this view
+    serializer_class = CustomUserSerializer
 
     def get(self, request):
         user = request.user  # Get the currently authenticated user
@@ -352,9 +354,10 @@ class UpdateUserView(APIView):
 
 class TestProtectedView(APIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = CustomUserSerializer  # For schema generation
 
     def get(self, request):
-        return Response({'message': "Protected andpoint accessible to authenticated users."})
+        return Response({'message': "Protected endpoint accessible to authenticated users."})
 
 
 class AdminUserViewSet(viewsets.ReadOnlyModelViewSet):
@@ -384,6 +387,7 @@ class CustomerProfileView(APIView):
     def get(self, request):
         """Get customer profile data"""
         from .serializers import CustomerProfileSerializer
+        self.serializer_class = CustomerProfileSerializer
         
         user = request.user
         serializer = CustomerProfileSerializer(user)
@@ -421,6 +425,7 @@ class FullUserProfileView(APIView):
     def get(self, request):
         """Get complete user profile data"""
         from .serializers import FullUserProfileSerializer
+        self.serializer_class = FullUserProfileSerializer
         
         user = request.user
         serializer = FullUserProfileSerializer(user)

@@ -12,7 +12,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
         fields = ['id', 'product', 'quantity', 'price', 'subtotal']
         read_only_fields = ['id', 'product', 'price']
     
-    def get_subtotal(self, obj):
+    def get_subtotal(self, obj) -> float:
         return obj.quantity * obj.price
 
 
@@ -32,13 +32,13 @@ class OrderListSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'order_number', 'created_at', 'updated_at']
     
-    def get_customer_name(self, obj):
+    def get_customer_name(self, obj) -> str:
         return obj.get_customer_name()
     
-    def get_delivery_address(self, obj):
+    def get_delivery_address(self, obj) -> str:
         return obj.get_delivery_address()
     
-    def get_item_count(self, obj):
+    def get_item_count(self, obj) -> int:
         return obj.items.count()
 
 
@@ -80,10 +80,10 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             'payment_method', 'mpesa_code', 'items', 'created_at', 'updated_at'
         ]
     
-    def get_customer_name(self, obj):
+    def get_customer_name(self, obj) -> str:
         return obj.get_customer_name()
     
-    def get_delivery_address(self, obj):
+    def get_delivery_address(self, obj) -> str:
         return obj.get_delivery_address()
 
 

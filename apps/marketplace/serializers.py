@@ -736,30 +736,17 @@ class CheckoutSerializer(serializers.Serializer):
         return value
     
     def validate(self, data):
-        """Validate totals match"""
+        """Validate items - backend recalculates all totals"""
         items = data.get('items', [])
-        subtotal = data.get('subtotal', 0)
-        shipping = data.get('shipping', 200)
-        total = data.get('total', 0)
         
-        # Calculate expected subtotal
-        calculated_subtotal = sum(
-            item.get('price', 0) * item.get('quantity', 0) 
-            for item in items
-        )
+        # Just ensure we have items - prices are validated in CheckoutItemSerializer
+        if not items:
+            raise serializers.ValidationError({'items': 'Cart cannot be empty'})
         
-        # Validate subtotal matches
-        if abs(float(calculated_subtotal) - float(subtotal)) > 0.01:
-            raise serializers.ValidationError({
-                'subtotal': f'Subtotal mismatch. Expected {calculated_subtotal}, got {subtotal}'
-            })
-        
-        # Validate total matches
-        expected_total = calculated_subtotal + shipping
-        if abs(float(expected_total) - float(total)) > 0.01:
-            raise serializers.ValidationError({
-                'total': f'Total mismatch. Expected {expected_total}, got {total}'
-            })
+        # Remove frontend-submitted subtotal/total - backend will calculate
+        # This prevents price manipulation
+        data.pop('subtotal', None)
+        data.pop('total', None)
         
         return data
 

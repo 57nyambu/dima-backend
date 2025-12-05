@@ -258,6 +258,7 @@ MPESA_CONSUMER_KEY = env('MPESA_CONSUMER_KEY')
 MPESA_CONSUMER_SECRET = env('MPESA_CONSUMER_SECRET')
 MPESA_SHORTCODE = env('MPESA_SHORTCODE')
 MPESA_PASSKEY = env('MPESA_PASSKEY')
+MPESA_CALLBACK_URL = env('MPESA_CALLBACK_URL', default='https://yourdomain.com/api/marketplace/mpesa-callback/')
 
 
 # Cache configuration (recommended for marketplace performance)

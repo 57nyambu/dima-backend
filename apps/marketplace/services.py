@@ -113,8 +113,7 @@ class OrderSplitterService:
                             order.items.create(
                                 product=item['product'],
                                 quantity=item['quantity'],
-                                price=item['price'],
-                                subtotal=item['price'] * item['quantity']
+                                price=item['price']
                             )
                         except Exception as e:
                             logger.error(f"Could not create order item: {e}")
@@ -258,12 +257,12 @@ class NotificationService:
         # Send to buyer
         if 'buyer_title' in template:
             MarketplaceNotification.objects.create(
-                user=order.buyer,
+                user=order.user,
                 notification_type=notification_type,
                 title=template['buyer_title'],
                 message=template['buyer_message'].format(
-                    order_number=order.order_number,
-                    amount=order.total_amount,
+                    order_number=order.order_number or str(order.id),
+                    amount=order.total,
                     **kwargs
                 ),
                 order=order
@@ -271,18 +270,24 @@ class NotificationService:
         
         # Send to seller
         if 'seller_title' in template:
-            MarketplaceNotification.objects.create(
-                user=order.business.owner,
-                notification_type=notification_type,
-                title=template['seller_title'],
-                message=template['seller_message'].format(
-                    order_number=order.order_number,
-                    amount=order.total_amount,
-                    **kwargs
-                ),
-                order=order,
-                business=order.business
-            )
+            # Get business owner if exists
+            try:
+                owner = order.business.owner if hasattr(order.business, 'owner') else None
+                if owner:
+                    MarketplaceNotification.objects.create(
+                        user=owner,
+                        notification_type=notification_type,
+                        title=template['seller_title'],
+                        message=template['seller_message'].format(
+                            order_number=order.order_number or str(order.id),
+                            amount=order.total,
+                            **kwargs
+                        ),
+                        order=order,
+                        business=order.business
+                    )
+            except Exception as e:
+                logger.error(f"Failed to send seller notification: {e}")
     
     @staticmethod
     def send_dispute_notification(dispute: MarketplaceDispute):
