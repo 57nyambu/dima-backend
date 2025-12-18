@@ -57,11 +57,22 @@ class Order(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
+        # Store previous status for signal detection
         if self.pk:
             orig = Order.objects.get(pk=self.pk)
             self._previous_status = orig.status
         else:
             self._previous_status = None
+        
+        # Generate order number if not set
+        if not self.order_number:
+            import uuid
+            from datetime import datetime
+            # Format: ORD-YYYYMMDD-XXXX (e.g., ORD-20251218-A1B2)
+            date_str = datetime.now().strftime('%Y%m%d')
+            unique_id = str(uuid.uuid4())[:4].upper()
+            self.order_number = f"ORD-{date_str}-{unique_id}"
+        
         super().save(*args, **kwargs)
 
     def total_amount(self):

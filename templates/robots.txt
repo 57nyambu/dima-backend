@@ -1,0 +1,24 @@
+User-agent: *
+Allow: /
+
+# Disallow private/user-specific pages
+Disallow: /admin/
+Disallow: /api/v1/auth/
+Disallow: /api/v1/user-mgt/
+Disallow: /api/v1/orders/
+Disallow: /api/v1/notifications/
+Disallow: /api/v1/shipping/
+Disallow: /api/marketplace/checkout/
+Disallow: /api/marketplace/cart/
+Disallow: /api/docs/
+
+# Allow API endpoints that serve public data
+Allow: /api/v1/products/
+Allow: /api/v1/business/
+Allow: /api/marketplace/products/
+
+# Crawl delay (be gentle with our server)
+Crawl-delay: 1
+
+# Sitemap location (served from API backend)
+Sitemap: https://api.dima.co.ke/sitemap.xml

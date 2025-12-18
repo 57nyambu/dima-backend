@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.postgres',
+    'django.contrib.sitemaps',  # For SEO sitemap generation
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
@@ -301,6 +302,12 @@ DEFAULT_FROM_EMAIL = 'noreply@yourmarketplace.com'
 # Google Confs
 GOOGLE_CLIENT_ID = env('GOOGLE_CLIENT_ID')
 GOOGLE_CLIENT_SECRET = env('GOOGLE_CLIENT_SECRET')
+
+# Africa's Talking API
+AFRICASTALKING_API_KEY = env('AFRICASTALKING_API_KEY')
+AFRICASTALKING_USERNAME = env('AFRICASTALKING_USERNAME')
+AFRICASTALKING_SENDER_ID = env('AFRICASTALKING_SENDER_ID', default='DIMA')
+AFRICASTALKING_ENVIRONMENT = env('AFRICASTALKING_ENVIRONMENT', default='production')  # 'production' or 'sandbox'
 
 # PostgreSQL full-text search (optional but recommended)
 #if 'postgresql' in DATABASES['default']['ENGINE']:

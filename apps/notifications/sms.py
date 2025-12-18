@@ -6,31 +6,97 @@ import logging
 logger = logging.getLogger(__name__)
 
 class SMSService:
+    """
+    AfricasTalking SMS Service using official SDK
+    Docs: https://developers.africastalking.com/docs/sms/overview
+    
+    The official SDK handles:
+    - Proper authentication
+    - Sandbox vs production mode
+    - Request formatting
+    - Error handling
+    """
+    
     def __init__(self):
         if not all([settings.AFRICASTALKING_USERNAME, settings.AFRICASTALKING_API_KEY]):
             raise ImproperlyConfigured("Africa's Talking credentials not configured")
-            
+        
+        self.username = settings.AFRICASTALKING_USERNAME
+        self.api_key = settings.AFRICASTALKING_API_KEY
+        self.sender_id = getattr(settings, 'AFRICASTALKING_SENDER_ID', None)
+        
+        # Initialize AfricasTalking SDK
         africastalking.initialize(
-            username=settings.AFRICASTALKING_USERNAME,
-            api_key=settings.AFRICASTALKING_API_KEY
+            username=self.username,
+            api_key=self.api_key
         )
+        
         self.sms = africastalking.SMS
+        logger.info(f"SMS Service initialized for username: {self.username}")
     
     def send_sms(self, phone_number, message):
         """
-        Send SMS via Africa's Talking
+        Send SMS via AfricasTalking SDK
         :param phone_number: Recipient phone number (format: +2547XXXXXXXX)
-        :param message: SMS content
-        :return: Africa's Talking API response
+        :param message: SMS content (max 160 chars for single SMS)
+        :return: Dictionary with success status and response data
         """
         try:
-            response = self.sms.send(message, [phone_number])
+            # Ensure phone number is a list
+            phone_numbers = [phone_number] if isinstance(phone_number, str) else phone_number
+            
+            # Validate phone numbers
+            for number in phone_numbers:
+                if not number.startswith('+'):
+                    logger.warning(f"Phone number {number} should start with + (e.g., +254712345678)")
+            
+            logger.info(f"Sending SMS to {phone_numbers}: {message[:50]}...")
+            
+            # Build kwargs for SDK
+            kwargs = {}
+            if self.sender_id and self.username != 'sandbox':
+                kwargs['sender_id'] = self.sender_id
+            
+            # Send SMS using SDK
+            response = self.sms.send(message, phone_numbers, **kwargs)
+            
+            logger.info(f"API Response: {response}")
+            
+            # Parse SDK response
+            sms_data = response.get('SMSMessageData', {})
+            recipients = sms_data.get('Recipients', [])
+            
+            # Check if any messages were sent successfully
+            # Status codes: 100=Processed, 101=Sent, 102=Queued
+            if recipients:
+                success = any(r.get('statusCode') in [100, 101, 102] for r in recipients)
+            else:
+                logger.error(f"No recipients in response. Full data: {sms_data}")
+                success = False
+            
+            if success:
+                logger.info(f"✓ SMS sent successfully: {sms_data.get('Message', '')}")
+                for r in recipients:
+                    logger.info(f"  → {r.get('number')}: {r.get('status')} (Code: {r.get('statusCode')})")
+            else:
+                logger.error(f"✗ SMS failed. Recipients: {recipients}")
+                if recipients:
+                    for r in recipients:
+                        logger.error(f"  → {r.get('number')}: {r.get('status')} (Code: {r.get('statusCode')})")
+            
             return {
-                'success': True,
+                'success': success,
                 'response': response,
-                'recipient': phone_number
+                'recipient': phone_numbers[0] if len(phone_numbers) == 1 else phone_numbers,
+                'message_data': sms_data,
+                'recipients': recipients,
+                'full_response': response
             }
+            
         except Exception as e:
+            logger.error(f"✗ SMS sending failed: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
             return {
                 'success': False,
                 'error': str(e),
