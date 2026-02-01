@@ -5,6 +5,7 @@ from apps.business.models import Business
 
 class Order(models.Model):
     STATUS_CHOICES = [
+        ('pending_payment', 'Pending Payment'),
         ('pending', 'Pending'),
         ('confirmed', 'Confirmed'),
         ('processing', 'Processing'),

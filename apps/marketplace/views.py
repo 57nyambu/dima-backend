@@ -427,9 +427,15 @@ def process_checkout(request):
                 'payment_status': getattr(order, 'payment_status', 'pending')
             })
         
+        # Adjust message based on payment method
+        if payment_method == 'mpesa':
+            message = f'{len(orders)} order(s) created - awaiting M-Pesa payment confirmation'
+        else:
+            message = f'{len(orders)} order(s) created successfully'
+        
         response_data = {
             'success': True,
-            'message': f'{len(orders)} order(s) created successfully',
+            'message': message,
             'orders': order_responses,
             'total_orders': len(orders),
             'total_amount': float(total_amount)
@@ -559,47 +565,61 @@ def mpesa_callback(request):
             callback_metadata = callback_data.get('Body', {}).get('stkCallback', {}).get('CallbackMetadata', {}).get('Item', [])
             
             # Extract payment details
-            amount = None
             mpesa_receipt = None
             phone_number = None
-            transaction_date = None
+            amount = None
             
             for item in callback_metadata:
-                if item.get('Name') == 'Amount':
-                    amount = item.get('Value')
-                elif item.get('Name') == 'MpesaReceiptNumber':
+                if item.get('Name') == 'MpesaReceiptNumber':
                     mpesa_receipt = item.get('Value')
                 elif item.get('Name') == 'PhoneNumber':
                     phone_number = item.get('Value')
-                elif item.get('Name') == 'TransactionDate':
-                    transaction_date = item.get('Value')
+                elif item.get('Name') == 'Amount':
+                    amount = item.get('Value')
             
-            # Update all orders
-            for order in orders:
-                # Use qsetent_status field for payment status (or add payment_status field via migration)
-                order.qsetent_status = 'paid'
-                order.status = 'confirmed'
-                # Store receipt in mpesa_code if it wasn't already used for checkout_request_id
-                # Ideally add mpesa_receipt_number field via migration
-                order.save()
+            # Update M-Pesa receipt code on orders
+            orders.update(mpesa_code=mpesa_receipt)
+            
+            # Confirm orders and reduce stock
+            orders_list = list(orders)
+            if OrderSplitterService.confirm_mpesa_orders(orders_list):
+                logger.info(f"Payment confirmed for {len(orders_list)} orders. Receipt: {mpesa_receipt}")
                 
-                # Send confirmation notification
-                try:
-                    NotificationService.send_order_notification('order_confirmed', order)
-                except Exception as e:
-                    logger.error(f"Failed to send confirmation for order {order.id}: {str(e)}")
-            
-            logger.info(f"Payment successful for CheckoutRequestID: {checkout_request_id}, Receipt: {mpesa_receipt}")
-            
+                # Send confirmation notifications
+                for order in orders_list:
+                    try:
+                        NotificationService.send_order_notification('order_confirmed', order)
+                    except Exception as e:
+                        logger.error(f"Failed to send notification for order {order.id}: {e}")
+                
+                return Response({
+                    'ResultCode': 0,
+                    'ResultDesc': 'Success'
+                }, status=status.HTTP_200_OK)
+            else:
+                logger.error("Failed to confirm M-Pesa orders after successful payment")
+                return Response({
+                    'ResultCode': 1,
+                    'ResultDesc': 'Order confirmation failed'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
         else:
             # Payment failed or cancelled
             result_desc = callback_data.get('Body', {}).get('stkCallback', {}).get('ResultDesc', 'Payment failed')
+            logger.warning(f"M-Pesa payment failed: {result_desc}")
             
-            for order in orders:
-                order.qsetent_status = 'failed'
-                order.save()
+            # Update orders to show payment failed - don't reduce stock
+            orders.update(
+                status='cancelled',
+                payment_status='failed'
+            )
             
-            logger.warning(f"Payment failed for CheckoutRequestID: {checkout_request_id}, Reason: {result_desc}")
+            logger.info(f"Cancelled {orders.count()} orders due to failed payment")
+            
+            return Response({
+                'ResultCode': 1,
+                'ResultDesc': 'Payment failed'
+            }, status=status.HTTP_200_OK)
         
         return Response({'ResultCode': 0, 'ResultDesc': 'Accepted'})
         

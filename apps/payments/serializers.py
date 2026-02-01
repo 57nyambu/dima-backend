@@ -1,12 +1,10 @@
 from rest_framework import serializers
 from .models import Payment
-from orders.models import Order
-from serializers import PhoneNumberField
 
 
 class PaymentSerializer(serializers.ModelSerializer):
     """Handles payment creation and validation"""
-    mpesa_phone = PhoneNumberField(region='KE', required=False)
+    mpesa_phone = serializers.CharField(max_length=15, required=False, allow_blank=True)
     
     class Meta:
         model = Payment

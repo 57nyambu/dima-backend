@@ -84,13 +84,19 @@ class OrderSplitterService:
                 # Calculate order total for this vendor
                 order_total = sum(item['price'] * item['quantity'] for item in items)
                 
+                # Determine order status based on payment method
+                # M-Pesa orders start as pending_payment, others as pending
+                order_status = 'pending_payment' if payment_method == 'mpesa' else 'pending'
+                payment_status = 'pending' if payment_method == 'mpesa' else 'paid'
+                
                 # Create order with customer and delivery information
                 order = Order.objects.create(
                     user=buyer,
                     business=business,
                     total=order_total,
                     payment_method=payment_method,
-                    status='pending',
+                    status=order_status,
+                    payment_status=payment_status,
                     # Store customer information from shipping_details
                     customer_first_name=buyer.first_name,
                     customer_last_name=buyer.last_name,
@@ -118,15 +124,17 @@ class OrderSplitterService:
                         except Exception as e:
                             logger.error(f"Could not create order item: {e}")
                 
-                # Update product stock
-                for item in items:
-                    product = item['product']
-                    product.stock_qty = F('stock_qty') - item['quantity']
-                    product.sales_count = F('sales_count') + item['quantity']
-                    product.save(update_fields=['stock_qty', 'sales_count'])
+                # Only reduce stock for non-MPesa payments (COD, PayPal, etc.)
+                # For M-Pesa, stock will be reduced after payment confirmation
+                if payment_method != 'mpesa':
+                    for item in items:
+                        product = item['product']
+                        product.stock_qty = F('stock_qty') - item['quantity']
+                        product.sales_count = F('sales_count') + item['quantity']
+                        product.save(update_fields=['stock_qty', 'sales_count'])
                 
                 orders.append(order)
-                logger.info(f"Created order {order.id} for business {business.name}")
+                logger.info(f"Created order {order.id} for business {business.name} with status {order_status}")
         
         return orders
     
@@ -134,6 +142,48 @@ class OrderSplitterService:
     def calculate_total_amount(cart_items: list) -> float:
         """Calculate total amount from cart items"""
         return sum(item.get('price', 0) * item.get('quantity', 0) for item in cart_items)
+    
+    @staticmethod
+    def confirm_mpesa_orders(orders: List[Order]) -> bool:
+        """
+        Confirm M-Pesa orders after successful payment.
+        Updates order status and reduces product stock.
+        
+        Args:
+            orders: List of Order objects to confirm
+        
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            with transaction.atomic():
+                for order in orders:
+                    # Update order status
+                    order.status = 'pending'  # Move from pending_payment to pending
+                    order.payment_status = 'paid'
+                    order.save(update_fields=['status', 'payment_status'])
+                    
+                    # Reduce stock for order items
+                    for item in order.items.all():
+                        product = item.product
+                        product.stock_qty = F('stock_qty') - item.quantity
+                        product.sales_count = F('sales_count') + item.quantity
+                        product.save(update_fields=['stock_qty', 'sales_count'])
+                        
+                        # Reload to get actual values after F() expression
+                        product.refresh_from_db()
+                        
+                        # Check if stock is now low
+                        if product.stock_qty <= 10 and product.stock_qty > 0:
+                            from .models import MarketplaceNotification
+                            NotificationService.send_stock_alert(product)
+                    
+                    logger.info(f"Confirmed M-Pesa order {order.id} - Stock reduced")
+                
+                return True
+        except Exception as e:
+            logger.error(f"Failed to confirm M-Pesa orders: {str(e)}", exc_info=True)
+            return False
 
 
 class CommissionEngine:
