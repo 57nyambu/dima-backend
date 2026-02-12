@@ -96,12 +96,31 @@ class RegisterUserView(APIView):
         
         serializer = CustomUserSerializer(data=user_data) 
         if serializer.is_valid(): 
-            serializer.save() 
-            #welcomeEmail(user_data) 
-            user = serializer.data 
+            user = serializer.save()
+            
+            # Send welcome email using new EmailService
+            try:
+                from apps.notifications.emails import EmailService
+                email_service = EmailService()
+                email_service.send_signup_welcome(user)
+                logger.info(f"✓ Welcome email sent to {user.email}")
+            except Exception as e:
+                logger.error(f"✗ Failed to send welcome email: {e}")
+            
+            # Send welcome SMS if phone number is provided
+            if user.phone_number:
+                try:
+                    from apps.notifications.sms import SMSService
+                    sms_service = SMSService()
+                    sms_service.send_signup_welcome(user)
+                    logger.info(f"✓ Welcome SMS sent to {user.phone_number}")
+                except Exception as e:
+                    logger.error(f"✗ Failed to send welcome SMS: {e}")
+            
             response = Response({ 
                 'success': True,
                 'message': "User created!", 
+                'data': serializer.data
                 }, status=status.HTTP_201_CREATED) 
             response['Content-Type'] = 'application/json' 
             return response 
@@ -251,13 +270,19 @@ class PasswordResetCodeRequestView(APIView):
             
             try:
                 if method == 'email':
-                    # Send reset code via email
-                    send_reset_code_email({
-                        'email': user.email,
-                        'reset_code': reset_code,
-                        'first_name': user.first_name or 'User',
-                        'expires_in': '10 minutes'
-                    })
+                    # Send reset code via email using new EmailService
+                    from apps.notifications.emails import EmailService
+                    email_service = EmailService()
+                    result = email_service.send_password_reset(user, reset_code)
+                    
+                    if not result.get('success'):
+                        return Response({
+                            'success': False,
+                            'error': 'Failed to send reset email'
+                        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    
+                    logger.info(f"✓ Password reset email sent to {user.email}")
+                    
                 elif method == 'sms':
                     # Send reset code via SMS
                     if not user.phone_number:
@@ -266,11 +291,18 @@ class PasswordResetCodeRequestView(APIView):
                             'error': 'Phone number not found for this user'
                         }, status=status.HTTP_400_BAD_REQUEST)
                     
-                    send_reset_code_sms({
-                        'phone_number': user.phone_number,
-                        'reset_code': reset_code,
-                        'expires_in': '10 minutes'
-                    })
+                    # Use new SMSService with logging
+                    from apps.notifications.sms import SMSService
+                    sms_service = SMSService()
+                    result = sms_service.send_password_reset_code(user, reset_code)
+                    
+                    if not result.get('success'):
+                        return Response({
+                            'success': False,
+                            'error': 'Failed to send reset SMS'
+                        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    
+                    logger.info(f"✓ Password reset SMS sent to {user.phone_number}")
                 
                 return Response({
                     'success': True,
@@ -302,6 +334,33 @@ class PasswordResetCodeVerifyView(APIView):
         if serializer.is_valid():
             user = serializer.validated_data['user']
             user.clear_reset_code()
+            
+            # Send confirmation notifications
+            try:
+                # Send confirmation email
+                from apps.notifications.emails import EmailService
+                email_service = EmailService()
+                email_result = email_service.send_password_reset_success(user)
+                
+                if email_result.get('success'):
+                    logger.info(f"✓ Password reset confirmation email sent to {user.email}")
+                else:
+                    logger.warning(f"Failed to send confirmation email: {email_result.get('error')}")
+                
+                # Send confirmation SMS if user has phone number
+                if user.phone_number:
+                    from apps.notifications.sms import SMSService
+                    sms_service = SMSService()
+                    sms_result = sms_service.send_password_reset_success(user)
+                    
+                    if sms_result.get('success'):
+                        logger.info(f"✓ Password reset confirmation SMS sent to {user.phone_number}")
+                    else:
+                        logger.warning(f"Failed to send confirmation SMS: {sms_result.get('error')}")
+                        
+            except Exception as e:
+                # Don't fail the password reset if notifications fail
+                logger.error(f"Error sending password reset confirmations: {str(e)}")
             
             return Response({
                 'success': True,

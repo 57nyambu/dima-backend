@@ -24,9 +24,13 @@ urlpatterns = [
     
     # Admin
     path('admin/', admin.site.urls),
+
+    # Dashboard
+    path('api/v1/dashboard/', include('apps.dashboard.urls')),
     
     # API Endpoints
     path('api/v1/auth/', include('apps.accounts.urls.auth')),
+    path('api/auth/', include('apps.accounts.urls.auth')),  # Non-versioned route (Google OAuth redirects)
     path('api/v1/user-mgt/', include('apps.accounts.urls.user_mgt')),
     path('api/v1/', include('apps.products.urls')),
     path('api/v1/business/', include('apps.business.urls')),

@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'drf_spectacular',
     'apps.accounts',
     'apps.products',
+    'apps.dashboard',
     'apps.orders',
     'apps.payments',
     'apps.business',
@@ -297,7 +298,9 @@ MARKETPLACE_SETTINGS = {
 
 # Email configuration
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-DEFAULT_FROM_EMAIL = 'noreply@yourmarketplace.com'
+DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='Dima Marketplace <noreply@dima.co.ke>')
+SITE_URL = env('SITE_URL', default='https://dima.co.ke')
+SUPPORT_EMAIL = env('SUPPORT_EMAIL', default='support@dima.co.ke')
 
 # Google Confs
 GOOGLE_CLIENT_ID = env('GOOGLE_CLIENT_ID')

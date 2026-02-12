@@ -1,0 +1,35 @@
+{% extends "email_base.html" %}
+
+{% block content %}
+<h1>✅ Order Delivered Successfully!</h1>
+
+<p>Hi {{ user.first_name|default:"there" }},</p>
+
+<p>Your order <strong>#{{ order_number }}</strong> has been delivered successfully!</p>
+
+<div style="background-color: #f0fdf4; border-left: 4px solid #22c55e; padding: 20px; margin: 25px 0; text-align: center;">
+    <div style="font-size: 48px; margin-bottom: 10px;">✓</div>
+    <h2 style="margin: 0; color: #15803d;">Delivered</h2>
+    <p style="margin: 10px 0 0 0;">{{ order.delivered_at|date:"F d, Y H:i" }}</p>
+</div>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{ site_url }}/orders/{{ order.order_number }}/review" class="btn">Rate Your Experience</a>
+</div>
+
+<div style="margin: 25px 0;">
+    <h3>How Was Your Experience?</h3>
+    <p>Your feedback helps us improve and helps other shoppers make informed decisions. Please take a moment to:</p>
+    <ul style="line-height: 1.8;">
+        <li>Rate the product quality</li>
+        <li>Review the seller's service</li>
+        <li>Share photos of your purchase</li>
+    </ul>
+</div>
+
+<p>Thank you for shopping with Dima Marketplace! We hope to serve you again soon.</p>
+
+<div style="background-color: #f1f5f9; padding: 15px; margin: 25px 0; text-align: center;">
+    <p style="margin: 0;"><strong>Need Help?</strong> Contact us at <a href="mailto:{{ support_email }}" style="color: #4a6fdc;">{{ support_email }}</a></p>
+</div>
+{% endblock %}

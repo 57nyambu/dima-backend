@@ -1,0 +1,32 @@
+{% extends "email_base.html" %}
+
+{% block content %}
+<h1>💳 Payment Confirmed</h1>
+
+<p>Hi {{ user.first_name|default:"there" }},</p>
+
+<p>Your payment has been successfully processed for order <strong>#{{ order_number }}</strong>.</p>
+
+<div style="background-color: #f0fdf4; border-left: 4px solid #22c55e; padding: 20px; margin: 25px 0;">
+    <h2 style="margin-top: 0; color: #15803d;">Payment Details</h2>
+    <p style="margin: 5px 0;"><strong>Order Number:</strong> #{{ order_number }}</p>
+    <p style="margin: 5px 0;"><strong>Amount Paid:</strong> KES {{ amount|floatformat:2 }}</p>
+    <p style="margin: 5px 0;"><strong>Payment Date:</strong> {{ order.paid_at|date:"F d, Y H:i" }}</p>
+    <p style="margin: 5px 0;"><strong>Status:</strong> <span style="color: #22c55e; font-weight: bold;">✓ CONFIRMED</span></p>
+</div>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{ site_url }}/orders/{{ order.order_number }}" class="btn">View Order Details</a>
+</div>
+
+<div style="margin: 25px 0;">
+    <h3>What Happens Next?</h3>
+    <ul style="line-height: 1.8;">
+        <li>Your order is being prepared for shipment</li>
+        <li>You'll receive a tracking number when it ships</li>
+        <li>Estimated delivery: 3-5 business days</li>
+    </ul>
+</div>
+
+<p>Thank you for your purchase!</p>
+{% endblock %}

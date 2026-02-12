@@ -1,0 +1,36 @@
+{% extends "email_base.html" %}
+
+{% block content %}
+<h1>⚠️ Low Stock Alert</h1>
+
+<p>Hi {{ business.owner.first_name|default:"there" }},</p>
+
+<p>This is an important alert about your product inventory on <strong>{{ business.name }}</strong>.</p>
+
+<div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 20px; margin: 25px 0;">
+    <h2 style="margin-top: 0; color: #92400e;">Product Running Low</h2>
+    <p style="margin: 5px 0;"><strong>Product:</strong> {{ product_name }}</p>
+    <p style="margin: 5px 0;"><strong>Current Stock:</strong> {{ stock_count }} units</p>
+    <p style="margin: 5px 0;"><strong>Status:</strong> <span style="color: #dc2626; font-weight: bold;">LOW STOCK</span></p>
+</div>
+
+<div style="background-color: #fee2e2; border-left: 4px solid #ef4444; padding: 15px; margin: 25px 0;">
+    <p style="margin: 0;"><strong>Action Required:</strong> Restock this product soon to avoid missed sales and disappointed customers.</p>
+</div>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{ site_url }}/business/products/{{ product.id }}/edit" class="btn">Update Inventory</a>
+</div>
+
+<div style="margin: 25px 0;">
+    <h3>Why Maintaining Stock Matters:</h3>
+    <ul style="line-height: 1.8;">
+        <li>Prevents customer disappointment</li>
+        <li>Maintains your seller rating</li>
+        <li>Maximizes sales opportunities</li>
+        <li>Builds customer trust</li>
+    </ul>
+</div>
+
+<p>Don't let stock-outs impact your sales! Update your inventory now.</p>
+{% endblock %}

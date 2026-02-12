@@ -1,0 +1,38 @@
+{% extends "email_base.html" %}
+
+{% block content %}
+<h1>Welcome to Dima Marketplace!</h1>
+
+<p>Hi {{ first_name }},</p>
+
+<p>Welcome aboard! We're excited to have you join the Dima Marketplace community.</p>
+
+<div style="background-color: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 20px; margin: 25px 0;">
+    <h2 style="margin-top: 0; color: #0c4a6e;">What You Can Do:</h2>
+    <ul style="line-height: 1.8;">
+        <li>🛍️ <strong>Shop</strong> from thousands of quality products</li>
+        <li>💼 <strong>Sell</strong> your products and grow your business</li>
+        <li>⭐ <strong>Rate</strong> and review products</li>
+        <li>🔔 <strong>Track</strong> your orders in real-time</li>
+    </ul>
+</div>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{ site_url }}/marketplace" class="btn">Start Shopping</a>
+    <a href="{{ site_url }}/business/register" class="btn-secondary" style="display: inline-block; margin-top: 10px;">Become a Seller</a>
+</div>
+
+<div style="margin: 25px 0;">
+    <h3>Quick Tips:</h3>
+    <ul style="line-height: 1.8;">
+        <li>Complete your profile for a personalized experience</li>
+        <li>Add your phone number for order notifications</li>
+        <li>Save your favorite products to a wishlist</li>
+        <li>Follow your favorite sellers for updates</li>
+    </ul>
+</div>
+
+<p>If you have any questions, our support team is here to help 24/7.</p>
+
+<p>Happy shopping!</p>
+{% endblock %}

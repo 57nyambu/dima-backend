@@ -1,0 +1,48 @@
+{% extends "email_base.html" %}
+
+{% block content %}
+<h1>Order Confirmation</h1>
+
+<p>Hi {{ user.first_name|default:"there" }},</p>
+
+<p>Thank you for your order! We've received your order <strong>#{{ order_number }}</strong> and we're processing it now.</p>
+
+<div style="background-color: #f8fafc; border-left: 4px solid #4a6fdc; padding: 20px; margin: 25px 0;">
+    <h2 style="margin-top: 0; color: #2c3e50;">Order Details</h2>
+    <p style="margin: 5px 0;"><strong>Order Number:</strong> #{{ order_number }}</p>
+    <p style="margin: 5px 0;"><strong>Order Date:</strong> {{ order.created_at|date:"F d, Y" }}</p>
+    <p style="margin: 5px 0;"><strong>Total Amount:</strong> KES {{ total|floatformat:2 }}</p>
+</div>
+
+{% if items %}
+<div style="margin: 25px 0;">
+    <h3>Items Ordered:</h3>
+    <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+            <tr style="background-color: #f1f5f9;">
+                <th style="padding: 10px; text-align: left; border-bottom: 2px solid #cbd5e1;">Item</th>
+                <th style="padding: 10px; text-align: center; border-bottom: 2px solid #cbd5e1;">Qty</th>
+                <th style="padding: 10px; text-align: right; border-bottom: 2px solid #cbd5e1;">Price</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">{{ item.product.name }}</td>
+                <td style="padding: 10px; text-align: center; border-bottom: 1px solid #e2e8f0;">{{ item.quantity }}</td>
+                <td style="padding: 10px; text-align: right; border-bottom: 1px solid #e2e8f0;">KES {{ item.price|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{ site_url }}/orders/{{ order.order_number }}" class="btn">Track Your Order</a>
+</div>
+
+<p>You'll receive another email when your order ships. If you have any questions, please don't hesitate to contact us.</p>
+
+<p>Thank you for shopping with Dima Marketplace!</p>
+{% endblock %}

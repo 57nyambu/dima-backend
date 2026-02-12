@@ -1,0 +1,36 @@
+{% extends "email_base.html" %}
+
+{% block content %}
+<h1>🎉 New Order Received!</h1>
+
+<p>Hi {{ business.owner.first_name|default:"there" }},</p>
+
+<p>Great news! You've received a new order on your Dima store <strong>{{ business.name }}</strong>.</p>
+
+<div style="background-color: #f0fdf4; border-left: 4px solid #22c55e; padding: 20px; margin: 25px 0;">
+    <h2 style="margin-top: 0; color: #15803d;">Order Summary</h2>
+    <p style="margin: 5px 0;"><strong>Order Number:</strong> #{{ order_number }}</p>
+    <p style="margin: 5px 0;"><strong>Customer:</strong> {{ customer_name }}</p>
+    <p style="margin: 5px 0;"><strong>Total Amount:</strong> KES {{ total|floatformat:2 }}</p>
+    <p style="margin: 5px 0;"><strong>Order Date:</strong> {{ order.created_at|date:"F d, Y H:i" }}</p>
+</div>
+
+<div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 25px 0;">
+    <p style="margin: 0;"><strong>⏰ Action Required:</strong> Please log in to your dashboard to review and confirm this order.</p>
+</div>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{ site_url }}/business/orders/{{ order.order_number }}" class="btn">View Order Details</a>
+</div>
+
+<div style="margin: 25px 0;">
+    <h3>Shipping Information:</h3>
+    <p style="margin: 5px 0;">{{ order.customer_name }}</p>
+    <p style="margin: 5px 0;">{{ order.shipping_address }}</p>
+    <p style="margin: 5px 0;">{{ order.customer_phone }}</p>
+</div>
+
+<p>Make sure to process this order promptly to maintain your seller rating and customer satisfaction.</p>
+
+<p>Need help? Visit our <a href="{{ site_url }}/seller-center" style="color: #4a6fdc;">Seller Center</a> or contact support.</p>
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends "email_base.html" %}
+
+{% block content %}
+<h1>📦 Your Order Has Shipped!</h1>
+
+<p>Hi {{ user.first_name|default:"there" }},</p>
+
+<p>Good news! Your order <strong>#{{ order_number }}</strong> is on its way to you.</p>
+
+<div style="background-color: #f0fdf4; border-left: 4px solid #22c55e; padding: 20px; margin: 25px 0;">
+    <h2 style="margin-top: 0; color: #15803d;">Shipping Details</h2>
+    <p style="margin: 5px 0;"><strong>Order Number:</strong> #{{ order_number }}</p>
+    {% if tracking_number %}
+    <p style="margin: 5px 0;"><strong>Tracking Number:</strong> {{ tracking_number }}</p>
+    {% endif %}
+    <p style="margin: 5px 0;"><strong>Shipped On:</strong> {{ order.shipped_at|date:"F d, Y" }}</p>
+</div>
+
+{% if tracking_number %}
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{ site_url }}/orders/{{ order.order_number }}/track" class="btn">Track Your Package</a>
+</div>
+{% endif %}
+
+<div style="margin: 25px 0;">
+    <h3>What's Next?</h3>
+    <ul style="line-height: 1.8;">
+        <li>Your package will arrive within 3-5 business days</li>
+        <li>You'll receive an email when it's delivered</li>
+        <li>Make sure someone is available to receive the package</li>
+    </ul>
+</div>
+
+<p>Questions about your delivery? <a href="{{ site_url }}/support" style="color: #4a6fdc;">Contact Support</a></p>
+{% endblock %}

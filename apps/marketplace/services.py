@@ -132,11 +132,50 @@ class OrderSplitterService:
                         product.stock_qty = F('stock_qty') - item['quantity']
                         product.sales_count = F('sales_count') + item['quantity']
                         product.save(update_fields=['stock_qty', 'sales_count'])
+                        
+                        # Reload to get actual values after F() expression
+                        product.refresh_from_db()
+                        
+                        # Check if stock is now low and send alert to seller
+                        if product.stock_qty <= 10 and product.stock_qty > 0:
+                            NotificationService.send_stock_alert(product)
                 
                 orders.append(order)
                 logger.info(f"Created order {order.id} for business {business.name} with status {order_status}")
+                
+                # Send SMS notifications for non-MPesa orders (immediate confirmation)
+                # For MPesa, SMS will be sent after payment confirmation
+                if payment_method != 'mpesa':
+                    OrderSplitterService._send_order_sms_notifications(order)
         
         return orders
+    
+    @staticmethod
+    def _send_order_sms_notifications(order):
+        """Send SMS notifications to buyer and seller"""
+        try:
+            from apps.notifications.sms import SMSService
+            sms_service = SMSService()
+            
+            # Send SMS to buyer
+            if order.customer_phone:
+                result_buyer = sms_service.send_order_confirmation_buyer(order)
+                if result_buyer['success']:
+                    logger.info(f"✓ Buyer SMS sent for order {order.order_number}")
+                else:
+                    logger.warning(f"✗ Buyer SMS failed for order {order.order_number}: {result_buyer.get('error')}")
+            
+            # Send SMS to seller
+            if order.business.owner.phone_number:
+                result_seller = sms_service.send_order_confirmation_seller(order)
+                if result_seller['success']:
+                    logger.info(f"✓ Seller SMS sent for order {order.order_number}")
+                else:
+                    logger.warning(f"✗ Seller SMS failed for order {order.order_number}: {result_seller.get('error')}")
+        
+        except Exception as e:
+            logger.error(f"Error sending order SMS notifications: {e}")
+            # Don't raise - SMS failures shouldn't block order creation
     
     @staticmethod
     def calculate_total_amount(cart_items: list) -> float:
@@ -173,18 +212,19 @@ class OrderSplitterService:
                         # Reload to get actual values after F() expression
                         product.refresh_from_db()
                         
-                        # Check if stock is now low
+                        # Check if stock is now low and send alert to seller
                         if product.stock_qty <= 10 and product.stock_qty > 0:
-                            from .models import MarketplaceNotification
                             NotificationService.send_stock_alert(product)
                     
                     logger.info(f"Confirmed M-Pesa order {order.id} - Stock reduced")
+                    
+                    # Send SMS notifications after successful payment
+                    OrderSplitterService._send_order_sms_notifications(order)
                 
                 return True
         except Exception as e:
             logger.error(f"Failed to confirm M-Pesa orders: {str(e)}", exc_info=True)
             return False
-
 
 class CommissionEngine:
     """Service to calculate platform commission and vendor payouts"""
@@ -358,7 +398,8 @@ class NotificationService:
     
     @staticmethod
     def send_stock_alert(product: Product):
-        """Send low stock alert to vendor"""
+        """Send low stock alert to vendor via notification and SMS"""
+        # Create in-app notification
         MarketplaceNotification.objects.create(
             user=product.business.owner,
             notification_type='stock_low',
@@ -367,6 +408,17 @@ class NotificationService:
             product=product,
             business=product.business
         )
+        
+        # Send SMS alert to seller
+        seller_phone = product.business.owner.phone_number
+        if seller_phone:
+            try:
+                from apps.notifications.sms import SMSService
+                sms_service = SMSService()
+                sms_service.send_low_stock_alert(product, seller_phone)
+                logger.info(f"✓ Low stock SMS sent to seller for product {product.name}")
+            except Exception as e:
+                logger.error(f"✗ Failed to send low stock SMS: {e}")
 
 
 class SearchService:
