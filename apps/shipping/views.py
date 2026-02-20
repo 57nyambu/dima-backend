@@ -10,6 +10,7 @@ class CustomerDeliveryAddressViewSet(viewsets.ModelViewSet):
     """ViewSet for managing customer delivery addresses"""
     serializer_class = CustomerDeliveryAddressSerializer
     permission_classes = [IsAuthenticated]
+    queryset = CustomerDeliveryAddress.objects.all()
     
     def get_queryset(self):
         """Return only addresses for the authenticated user"""

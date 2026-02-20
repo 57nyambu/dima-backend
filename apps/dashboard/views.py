@@ -1,4 +1,4 @@
-from rest_framework import status
+from rest_framework import status, serializers as drf_serializers
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -6,6 +6,7 @@ from django.db.models import Sum, Count, Q, F, Avg, Max, Min
 from django.utils import timezone
 from datetime import timedelta
 from decimal import Decimal
+from drf_spectacular.utils import extend_schema, inline_serializer
 
 from .permissions import IsSellerPermission, IsAdminPermission, IsBuyerPermission
 from .serializers import (
@@ -25,6 +26,7 @@ from apps.payments.models import Payment, PaymentSettlement
 
 # ==================== SELLER DASHBOARD ====================
 
+@extend_schema(responses=SellerDashboardSerializer, description='Seller dashboard overview with all key metrics including payment analytics')
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsSellerPermission])
 def seller_overview(request):
@@ -195,6 +197,19 @@ def seller_overview(request):
     return Response(serializer.data)
 
 
+@extend_schema(
+    responses=inline_serializer(
+        name='SellerSalesStatsResponse',
+        fields={
+            'total_sales': drf_serializers.FloatField(),
+            'total_orders': drf_serializers.IntegerField(),
+            'average_order_value': drf_serializers.FloatField(),
+            'by_status': drf_serializers.DictField(),
+            'by_payment_status': drf_serializers.DictField(),
+        },
+    ),
+    description='Detailed sales statistics for seller',
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsSellerPermission])
 def seller_sales_stats(request):
@@ -238,6 +253,7 @@ def seller_sales_stats(request):
 
 # ==================== ADMIN DASHBOARD ====================
 
+@extend_schema(responses=AdminDashboardSerializer, description='Admin dashboard overview with platform-wide metrics, user management, and payment analytics')
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsAdminPermission])
 def admin_overview(request):
@@ -509,6 +525,19 @@ def admin_overview(request):
     return Response(serializer.data)
 
 
+@extend_schema(
+    responses=inline_serializer(
+        name='AdminPlatformStatsResponse',
+        fields={
+            'users': drf_serializers.DictField(),
+            'businesses': drf_serializers.DictField(),
+            'products': drf_serializers.DictField(),
+            'orders': drf_serializers.DictField(),
+            'revenue': drf_serializers.DictField(),
+        },
+    ),
+    description='Detailed platform statistics',
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsAdminPermission])
 def admin_platform_stats(request):
@@ -562,6 +591,7 @@ def admin_platform_stats(request):
 
 # ==================== BUYER DASHBOARD ====================
 
+@extend_schema(responses=BuyerDashboardSerializer, description='Buyer dashboard overview with order history and stats')
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsBuyerPermission])
 def buyer_overview(request):
@@ -630,6 +660,19 @@ def buyer_overview(request):
     return Response(serializer.data)
 
 
+@extend_schema(
+    responses=inline_serializer(
+        name='BuyerOrderStatsResponse',
+        fields={
+            'total_orders': drf_serializers.IntegerField(),
+            'total_spent': drf_serializers.FloatField(),
+            'average_order_value': drf_serializers.FloatField(),
+            'by_status': drf_serializers.DictField(),
+            'by_payment_method': drf_serializers.DictField(),
+        },
+    ),
+    description='Detailed order statistics for buyer',
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsBuyerPermission])
 def buyer_order_stats(request):
@@ -664,6 +707,20 @@ def buyer_order_stats(request):
 
 # ==================== ADMIN MANAGEMENT ACTIONS ====================
 
+@extend_schema(
+    request=inline_serializer(
+        name='AdminManageUserRequest',
+        fields={'action': drf_serializers.CharField()},
+    ),
+    responses=inline_serializer(
+        name='AdminManageUserResponse',
+        fields={
+            'message': drf_serializers.CharField(),
+            'user': drf_serializers.DictField(),
+        },
+    ),
+    description='Admin action to manage a user account',
+)
 @api_view(['PATCH'])
 @permission_classes([IsAuthenticated, IsAdminPermission])
 def admin_manage_user(request, user_id):
@@ -735,6 +792,20 @@ def admin_manage_user(request, user_id):
     })
 
 
+@extend_schema(
+    request=inline_serializer(
+        name='AdminManageBusinessRequest',
+        fields={'action': drf_serializers.CharField()},
+    ),
+    responses=inline_serializer(
+        name='AdminManageBusinessResponse',
+        fields={
+            'message': drf_serializers.CharField(),
+            'business': drf_serializers.DictField(),
+        },
+    ),
+    description='Admin action to manage a business',
+)
 @api_view(['PATCH'])
 @permission_classes([IsAuthenticated, IsAdminPermission])
 def admin_manage_business(request, business_id):

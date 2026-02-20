@@ -1,8 +1,9 @@
 from rest_framework.views import APIView
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.response import Response
-from rest_framework import status, permissions, viewsets
+from rest_framework import status, permissions, viewsets, serializers as drf_serializers
 from rest_framework.permissions import IsAuthenticated
+from drf_spectacular.utils import extend_schema, inline_serializer
 from .serializers import (
     RoleSerializer,
     CustomUserSerializer, 
@@ -13,7 +14,9 @@ from .serializers import (
     UserDetailSerializer,
     GoogleAuthSerializer,
     PasswordResetCodeRequestSerializer,
-    PasswordResetCodeVerifySerializer)
+    PasswordResetCodeVerifySerializer,
+    CustomerProfileSerializer,
+    FullUserProfileSerializer)
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.exceptions import InvalidToken
@@ -90,7 +93,9 @@ class RoleApiView(APIView):
     
     
 
-class RegisterUserView(APIView): 
+class RegisterUserView(APIView):
+    serializer_class = CustomUserSerializer
+
     def post(self, request): 
         user_data = request.data 
         
@@ -173,6 +178,8 @@ class LogoutView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 class PasswordResetRequestView(APIView):
+    serializer_class = PasswordResetSerializer
+
     def post(self, request):
         serializer = PasswordResetSerializer(data=request.data)
         try:
@@ -199,6 +206,8 @@ class PasswordResetRequestView(APIView):
         }, status=status.HTTP_400_BAD_REQUEST)
 
 class PasswordResetConfirmView(APIView):
+    serializer_class = PasswordResetConfirmSerializer
+
     def post(self, request):
         serializer = PasswordResetConfirmSerializer(data=request.data)
         try:
@@ -223,6 +232,7 @@ class PasswordResetConfirmView(APIView):
 class GoogleAuthView(APIView):
     """Handle Google OAuth authentication"""
     permission_classes = [permissions.AllowAny]
+    serializer_class = GoogleAuthSerializer
     
     def post(self, request):
         serializer = GoogleAuthSerializer(data=request.data)
@@ -259,6 +269,7 @@ class GoogleAuthView(APIView):
 class PasswordResetCodeRequestView(APIView):
     """Request password reset code via email or SMS"""
     permission_classes = [permissions.AllowAny]
+    serializer_class = PasswordResetCodeRequestSerializer
     
     def post(self, request):
         serializer = PasswordResetCodeRequestSerializer(data=request.data)
@@ -327,6 +338,7 @@ class PasswordResetCodeRequestView(APIView):
 class PasswordResetCodeVerifyView(APIView):
     """Verify reset code and set new password"""
     permission_classes = [permissions.AllowAny]
+    serializer_class = PasswordResetCodeVerifySerializer
     
     def post(self, request):
         serializer = PasswordResetCodeVerifySerializer(data=request.data)
@@ -442,6 +454,7 @@ class UserDetailView(APIView):
 class CustomerProfileView(APIView):
     """Get and update customer profile information for checkout pre-fill"""
     permission_classes = [IsAuthenticated]
+    serializer_class = CustomerProfileSerializer
     
     def get(self, request):
         """Get customer profile data"""
@@ -480,6 +493,7 @@ class CustomerProfileView(APIView):
 class FullUserProfileView(APIView):
     """Get and update comprehensive user profile data"""
     permission_classes = [IsAuthenticated]
+    serializer_class = FullUserProfileSerializer
     
     def get(self, request):
         """Get complete user profile data"""

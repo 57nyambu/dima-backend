@@ -1,10 +1,11 @@
-from rest_framework import viewsets, permissions, status, filters
+from rest_framework import viewsets, permissions, status, filters, serializers as drf_serializers
 from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from django.contrib.admin.views.decorators import staff_member_required
 from django.utils.decorators import method_decorator
 from django.db.models import Q, Count
+from drf_spectacular.utils import extend_schema, inline_serializer
 from .sms import SMSService
 from .emails import EmailService
 from .models import Notification, SMSLog, EmailLog
@@ -32,6 +33,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     """
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = NotificationSerializer
+    queryset = Notification.objects.all()
     
     def get_queryset(self):
         """
@@ -197,6 +199,23 @@ class SMSLogViewSet(viewsets.ReadOnlyModelViewSet):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@extend_schema(
+    request=inline_serializer(
+        name='TestSMSRequest',
+        fields={
+            'phone_number': drf_serializers.CharField(),
+            'message': drf_serializers.CharField(required=False),
+        },
+    ),
+    responses=inline_serializer(
+        name='TestSMSResponse',
+        fields={
+            'success': drf_serializers.BooleanField(),
+            'message': drf_serializers.CharField(),
+        },
+    ),
+    description='Test endpoint for sending SMS (Admin only)',
+)
 @api_view(['POST'])
 @permission_classes([permissions.IsAdminUser])
 def test_sms(request):
@@ -252,6 +271,24 @@ def test_sms(request):
         )
 
 
+@extend_schema(
+    request=inline_serializer(
+        name='SendOrderSMSRequest',
+        fields={
+            'order_id': drf_serializers.IntegerField(),
+            'phone_number': drf_serializers.CharField(required=False),
+            'message_type': drf_serializers.CharField(required=False),
+        },
+    ),
+    responses=inline_serializer(
+        name='SendOrderSMSResponse',
+        fields={
+            'success': drf_serializers.BooleanField(),
+            'message': drf_serializers.CharField(),
+        },
+    ),
+    description='Send SMS notification for an order',
+)
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def send_order_sms_notification(request):
@@ -486,6 +523,24 @@ class EmailLogViewSet(viewsets.ReadOnlyModelViewSet):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@extend_schema(
+    request=inline_serializer(
+        name='TestEmailRequest',
+        fields={
+            'recipient': drf_serializers.EmailField(),
+            'subject': drf_serializers.CharField(required=False),
+            'message': drf_serializers.CharField(required=False),
+        },
+    ),
+    responses=inline_serializer(
+        name='TestEmailResponse',
+        fields={
+            'success': drf_serializers.BooleanField(),
+            'message': drf_serializers.CharField(),
+        },
+    ),
+    description='Test endpoint for sending emails (Admin only)',
+)
 @api_view(['POST'])
 @permission_classes([permissions.IsAdminUser])
 def test_email(request):

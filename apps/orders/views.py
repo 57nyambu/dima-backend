@@ -25,6 +25,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     - Staff/Admin users can view and modify all orders
     """
     permission_classes = [IsReadOnlyOrAdmin]
+    queryset = Order.objects.all()
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['order_number', 'customer_email', 'customer_phone', 'mpesa_code']
     ordering_fields = ['created_at', 'updated_at', 'total']

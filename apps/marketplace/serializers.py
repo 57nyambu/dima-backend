@@ -3,6 +3,8 @@ from rest_framework import serializers
 from django.conf import settings
 from django.db.models import Avg, Count, Q
 from django.db import models
+from drf_spectacular.utils import extend_schema_field
+from drf_spectacular.types import OpenApiTypes
 from apps.products.models import Product, ProductImage, Category
 from apps.business.models import Business, BusinessReview
 from apps.orders.models import Order
@@ -29,16 +31,20 @@ class VendorSummarySerializer(serializers.ModelSerializer):
             'completion_rate', 'response_time'
         ]
     
+    @extend_schema_field(OpenApiTypes.FLOAT)
     def get_avg_rating(self, obj):
         avg = obj.reviews.aggregate(avg_rating=Avg('rating'))['avg_rating']
         return round(avg, 2) if avg else 0.0
     
+    @extend_schema_field(OpenApiTypes.INT)
     def get_review_count(self, obj):
         return obj.reviews.count()
     
+    @extend_schema_field(OpenApiTypes.INT)
     def get_product_count(self, obj):
         return obj.products.filter(is_active=True).count()
     
+    @extend_schema_field(OpenApiTypes.FLOAT)
     def get_completion_rate(self, obj):
         # Calculate from orders - placeholder logic
         total_orders = obj.orders.count() if hasattr(obj, 'orders') else 0
@@ -47,6 +53,7 @@ class VendorSummarySerializer(serializers.ModelSerializer):
             return round((completed_orders / total_orders) * 100, 2)
         return 100.0
     
+    @extend_schema_field(OpenApiTypes.STR)
     def get_response_time(self, obj):
         # Placeholder - would calculate average response time
         return "2-4 hours"
@@ -72,7 +79,7 @@ class VendorHomepageSerializer(serializers.ModelSerializer):
         return Order.objects.filter(business=obj, status='delivered').count()
 
 
-class ProductImageSerializer(serializers.ModelSerializer):
+class MarketplaceProductImageSerializer(serializers.ModelSerializer):
     """Product images with different sizes"""
     original = serializers.SerializerMethodField()
     thumbnail_url = serializers.SerializerMethodField()
@@ -82,6 +89,7 @@ class ProductImageSerializer(serializers.ModelSerializer):
         model = ProductImage
         fields = ['id', 'original', 'thumbnail_url', 'medium_url', 'is_primary']
 
+    @extend_schema_field(OpenApiTypes.URI)
     def get_original(self, obj):
         if not obj or not obj.original:
             return None
@@ -95,6 +103,7 @@ class ProductImageSerializer(serializers.ModelSerializer):
                 return None
         return self.context['request'].build_absolute_uri(obj.original.url) if 'request' in self.context else obj.original.url
     
+    @extend_schema_field(OpenApiTypes.URI)
     def get_thumbnail_url(self, obj):
         # 300x300 WebP for product listings - Perfect for cards/grids
         if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud':
@@ -110,6 +119,7 @@ class ProductImageSerializer(serializers.ModelSerializer):
         thumb = getattr(obj, 'thumbnail', None)
         return self.context['request'].build_absolute_uri(thumb.url) if thumb else (self.context['request'].build_absolute_uri(obj.original.url) if obj.original else None)
     
+    @extend_schema_field(OpenApiTypes.URI)
     def get_medium_url(self, obj):
         # 800x800 WebP for product detail pages
         if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud':
@@ -135,7 +145,7 @@ class CategoryBreadcrumbSerializer(serializers.ModelSerializer):
 class ProductMarketplaceSerializer(serializers.ModelSerializer):
     """Enhanced product serializer for marketplace listings"""
     vendor = VendorSummarySerializer(source='business', read_only=True)
-    images = ProductImageSerializer(many=True, read_only=True)
+    images = MarketplaceProductImageSerializer(many=True, read_only=True)
     primary_image = serializers.SerializerMethodField()
     category_breadcrumb = serializers.SerializerMethodField()
     
@@ -165,16 +175,18 @@ class ProductMarketplaceSerializer(serializers.ModelSerializer):
             'shipping_options'
         ]
     
+    @extend_schema_field(OpenApiTypes.OBJECT)
     def get_primary_image(self, obj):
         primary = obj.images.filter(is_primary=True).first()
         if primary:
-            return ProductImageSerializer(primary, context=self.context).data
+            return MarketplaceProductImageSerializer(primary, context=self.context).data
         # Fallback to first image (serialize properly) if exists
         fallback = obj.images.first()
         if fallback:
-            return ProductImageSerializer(fallback, context=self.context).data
+            return MarketplaceProductImageSerializer(fallback, context=self.context).data
         return None
     
+    @extend_schema_field({'type': 'array', 'items': {'type': 'object'}})
     def get_category_breadcrumb(self, obj):
         breadcrumb = []
         category = obj.category
@@ -183,27 +195,34 @@ class ProductMarketplaceSerializer(serializers.ModelSerializer):
             category = category.parent
         return breadcrumb
     
+    @extend_schema_field(OpenApiTypes.FLOAT)
     def get_avg_rating(self, obj):
         avg = obj.reviews.aggregate(avg_rating=Avg('rating'))['avg_rating']
         return round(avg, 2) if avg else 0.0
     
+    @extend_schema_field(OpenApiTypes.INT)
     def get_review_count(self, obj):
         return obj.reviews.count()
     
+    @extend_schema_field(OpenApiTypes.DECIMAL)
     def get_effective_price(self, obj):
         return obj.discounted_price if obj.discounted_price > 0 else obj.price
     
+    @extend_schema_field(OpenApiTypes.FLOAT)
     def get_discount_percentage(self, obj):
         if obj.discounted_price > 0 and obj.price > obj.discounted_price:
             return round(((obj.price - obj.discounted_price) / obj.price) * 100, 0)
         return 0
     
+    @extend_schema_field(OpenApiTypes.BOOL)
     def get_in_stock(self, obj):
         return obj.stock_qty > 0
     
+    @extend_schema_field(OpenApiTypes.BOOL)
     def get_low_stock(self, obj):
         return 0 < obj.stock_qty <= 10  # Consider low stock threshold
     
+    @extend_schema_field({'type': 'array', 'items': {'type': 'object'}})
     def get_shipping_options(self, obj):
         # Get shipping options for this vendor
         if hasattr(obj.business, 'shipping_options'):
@@ -230,16 +249,20 @@ class VendorDetailSerializer(serializers.ModelSerializer):
             'product_count', 'categories', 'recent_reviews', 'business_metrics'
         ]
     
+    @extend_schema_field(OpenApiTypes.FLOAT)
     def get_avg_rating(self, obj):
         avg = obj.reviews.aggregate(avg_rating=Avg('rating'))['avg_rating']
         return round(avg, 2) if avg else 0.0
     
+    @extend_schema_field(OpenApiTypes.INT)
     def get_review_count(self, obj):
         return obj.reviews.count()
     
+    @extend_schema_field(OpenApiTypes.INT)
     def get_product_count(self, obj):
         return obj.products.filter(is_active=True).count()
     
+    @extend_schema_field({'type': 'array', 'items': {'type': 'object'}})
     def get_categories(self, obj):
         categories = Category.objects.filter(
             products__business=obj,
@@ -247,6 +270,7 @@ class VendorDetailSerializer(serializers.ModelSerializer):
         ).distinct().values('id', 'name', 'slug')
         return list(categories)
     
+    @extend_schema_field({'type': 'array', 'items': {'type': 'object'}})
     def get_recent_reviews(self, obj):
         reviews = obj.reviews.select_related('user').order_by('-created_at')[:3]
         return [{
@@ -256,6 +280,7 @@ class VendorDetailSerializer(serializers.ModelSerializer):
             'created_at': review.created_at
         } for review in reviews]
     
+    @extend_schema_field(OpenApiTypes.OBJECT)
     def get_business_metrics(self, obj):
         return {
             'total_orders': getattr(obj, 'total_orders', 0),
@@ -281,12 +306,14 @@ class OrderMarketplaceSerializer(serializers.ModelSerializer):
             'tracking_info'
         ]
     
+    @extend_schema_field(OpenApiTypes.OBJECT)
     def get_items_summary(self, obj):
         # Assuming you have OrderItem model in orders app
         if hasattr(obj, 'items'):
             return obj.items.count(), obj.items.aggregate(total=models.Sum('quantity'))['total']
         return 0, 0
     
+    @extend_schema_field(OpenApiTypes.OBJECT)
     def get_shipping_info(self, obj):
         return {
             'method': getattr(obj, 'shipping_method', 'Standard'),
@@ -294,12 +321,14 @@ class OrderMarketplaceSerializer(serializers.ModelSerializer):
             'estimated_delivery': getattr(obj, 'estimated_delivery', None)
         }
     
+    @extend_schema_field(OpenApiTypes.OBJECT)
     def get_payment_info(self, obj):
         return {
             'method': getattr(obj, 'payment_method', 'M-Pesa'),
             'status': getattr(obj, 'payment_status', 'Paid')
         }
     
+    @extend_schema_field(OpenApiTypes.OBJECT)
     def get_tracking_info(self, obj):
         return {
             'tracking_number': getattr(obj, 'tracking_number', None),
@@ -316,6 +345,7 @@ class CategoryListSerializer(serializers.ModelSerializer):
         model = Category
         fields = ['name', 'image', 'slug']
     
+    @extend_schema_field(OpenApiTypes.OBJECT)
     def get_image(self, obj):
         featured_image = obj.images.filter(is_feature=True).first()
         if not featured_image or not featured_image.original:
@@ -352,6 +382,7 @@ class HomepageDataSerializer(serializers.Serializer):
     products = serializers.SerializerMethodField()
     pagination = serializers.SerializerMethodField()
     
+    @extend_schema_field({'type': 'array', 'items': {'type': 'object'}})
     def get_banners(self, obj):
         from django.utils import timezone
         now = timezone.now()
@@ -386,16 +417,19 @@ class HomepageDataSerializer(serializers.Serializer):
             })
         return data
     
+    @extend_schema_field({'type': 'array', 'items': {'type': 'object'}})
     def get_categories(self, obj):
         """Get main categories WITHOUT images"""
         categories_data = obj.get('categories', [])
         return CategoryHomepageSerializer(categories_data, many=True).data
     
+    @extend_schema_field({'type': 'array', 'items': {'type': 'object'}})
     def get_vendors(self, obj):
         """Get all vendors ranked by rating"""
         vendors_data = obj.get('vendors', [])
         return VendorHomepageSerializer(vendors_data, many=True).data
     
+    @extend_schema_field({'type': 'array', 'items': {'type': 'object'}})
     def get_products(self, obj):
         """Get products with tags (featured, trending, etc.)"""
         products_data = obj.get('products', [])
@@ -417,6 +451,7 @@ class HomepageDataSerializer(serializers.Serializer):
         
         return results
     
+    @extend_schema_field(OpenApiTypes.OBJECT)
     def get_pagination(self, obj):
         """Return pagination info"""
         return {
@@ -433,6 +468,7 @@ class DisputeMessageSerializer(serializers.ModelSerializer):
         model = DisputeMessage
         fields = ['id', 'message', 'sender_name', 'is_admin', 'created_at']
     
+    @extend_schema_field(OpenApiTypes.STR)
     def get_sender_name(self, obj):
         if obj.is_admin:
             return "Marketplace Support"
@@ -454,11 +490,12 @@ class DisputeSerializer(serializers.ModelSerializer):
             'resolution_amount', 'resolved_at', 'created_at'
         ]
     
+    @extend_schema_field(OpenApiTypes.STR)
     def get_buyer_name(self, obj):
         return obj.buyer.first_name or obj.buyer.username or "User"
 
 
-class NotificationSerializer(serializers.ModelSerializer):
+class MarketplaceNotificationSerializer(serializers.ModelSerializer):
     """Marketplace notifications"""
     class Meta:
         model = MarketplaceNotification
@@ -475,6 +512,7 @@ class SearchResultSerializer(serializers.Serializer):
     total_vendors = serializers.IntegerField()
     filters = serializers.SerializerMethodField()
     
+    @extend_schema_field(OpenApiTypes.OBJECT)
     def get_filters(self, obj):
         """Available filters based on search results"""
         products = obj.get('products', [])
@@ -558,6 +596,7 @@ class BannerSerializer(serializers.ModelSerializer):
             'start_date', 'end_date'
         ]
     
+    @extend_schema_field(OpenApiTypes.URI)
     def get_thumbnail_small_url(self, obj):
         if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud' and obj.original:
             try:
@@ -571,6 +610,7 @@ class BannerSerializer(serializers.ModelSerializer):
                 return None
         return obj.thumbnail_small.url if hasattr(obj, 'thumbnail_small') and obj.thumbnail_small else (obj.original.url if obj.original else None)
     
+    @extend_schema_field(OpenApiTypes.URI)
     def get_thumbnail_medium_url(self, obj):
         if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud' and obj.original:
             try:
@@ -584,6 +624,7 @@ class BannerSerializer(serializers.ModelSerializer):
                 return None
         return obj.thumbnail_medium.url if hasattr(obj, 'thumbnail_medium') and obj.thumbnail_medium else (obj.original.url if obj.original else None)
     
+    @extend_schema_field(OpenApiTypes.URI)
     def get_thumbnail_large_url(self, obj):
         if getattr(settings, 'STORAGE_BACKEND', 'local') == 'cloud' and obj.original:
             try:

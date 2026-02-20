@@ -1,10 +1,11 @@
-from rest_framework import generics, status, viewsets
+from rest_framework import generics, status, viewsets, serializers as drf_serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db.models import Count, Q
+from drf_spectacular.utils import extend_schema, inline_serializer
 import logging
 
 from .models import Payment, PaymentSettlement
@@ -30,6 +31,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
     """
     serializer_class = PaymentSerializer
     permission_classes = [IsAuthenticated]
+    queryset = Payment.objects.all()
     
     def get_queryset(self):
         """Filter payments based on user role"""
@@ -447,6 +449,20 @@ class InitiatePaymentView(generics.CreateAPIView):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
+@extend_schema(
+    request=inline_serializer(
+        name='MPesaCallbackRequest',
+        fields={'Body': drf_serializers.DictField()},
+    ),
+    responses=inline_serializer(
+        name='MPesaCallbackViewResponse',
+        fields={
+            'ResultCode': drf_serializers.IntegerField(),
+            'ResultDesc': drf_serializers.CharField(),
+        },
+    ),
+    description='Handles MPesa payment confirmation webhook from Safaricom',
+)
 class MPesaCallbackView(generics.GenericAPIView):
     """
     Handles MPesa payment confirmation webhook from Safaricom.

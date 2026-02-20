@@ -1,4 +1,6 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
+from drf_spectacular.types import OpenApiTypes
 from apps.business.models import Business
 from .models import (
     Category, 
@@ -24,6 +26,7 @@ class ProductReviewSerializer(serializers.ModelSerializer):
                  'comment', 'mpesa_code', 'created_at']
         read_only_fields = ['user', 'created_at']
 
+    @extend_schema_field(OpenApiTypes.OBJECT)
     def get_product(self, obj):
         return {
             'name': obj.product.name,
@@ -54,18 +57,22 @@ class CategoryImageSerializer(serializers.ModelSerializer):
                   'thumbnail_large', 'alt_text', 'is_feature', 'created_at']
         read_only_fields = ['is_feature']
     
+    @extend_schema_field(OpenApiTypes.URI)
     def get_original_url(self, obj):
         """Get URL for original image"""
         return obj.original.url if obj.original else ''
     
+    @extend_schema_field(OpenApiTypes.URI)
     def get_thumbnail_small(self, obj):
         """Get URL for small thumbnail"""
         return obj.get_thumbnail_small_url()
     
+    @extend_schema_field(OpenApiTypes.URI)
     def get_thumbnail_medium(self, obj):
         """Get URL for medium thumbnail"""
         return obj.get_thumbnail_medium_url()
     
+    @extend_schema_field(OpenApiTypes.URI)
     def get_thumbnail_large(self, obj):
         """Get URL for large thumbnail"""
         return obj.get_thumbnail_large_url()
@@ -91,14 +98,17 @@ class ProductImageSerializer(serializers.ModelSerializer):
         model = ProductImage
         fields = ['id', 'original', 'original_url', 'thumbnail', 'medium', 'is_primary', 'created_at']
     
+    @extend_schema_field(OpenApiTypes.URI)
     def get_original_url(self, obj):
         """Get URL for original image"""
         return obj.original.url if obj.original else ''
     
+    @extend_schema_field(OpenApiTypes.URI)
     def get_thumbnail(self, obj):
         """Get URL for thumbnail"""
         return obj.get_thumbnail_url()
     
+    @extend_schema_field(OpenApiTypes.URI)
     def get_medium(self, obj):
         """Get URL for medium size"""
         return obj.get_medium_url()
@@ -153,12 +163,15 @@ class ProductDetailsSerializer(serializers.ModelSerializer):
     def get_is_in_stock(self, obj) -> bool:
         return obj.stock_qty > 0
 
+    @extend_schema_field(OpenApiTypes.FLOAT)
     def get_discount_percentage(self, obj):
         return obj.discount_percentage
 
+    @extend_schema_field(OpenApiTypes.INT)
     def get_view_count(self, obj):
         return obj.search_index.view_count if hasattr(obj, 'search_index') else 0
 
+    @extend_schema_field(OpenApiTypes.OBJECT)
     def get_business(self, obj):
         return {
             'id': obj.business.id,
@@ -168,6 +181,7 @@ class ProductDetailsSerializer(serializers.ModelSerializer):
             'verification_status': obj.business.verification_status
         }
 
+    @extend_schema_field({'type': 'array', 'items': {'type': 'object'}})
     def get_payment_methods(self, obj):
         return [
             {

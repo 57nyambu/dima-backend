@@ -36,7 +36,13 @@ class SMSLogSerializer(serializers.ModelSerializer):
             'sent_at', 'delivered_at', 'sender_id', 'message_length',
             'sms_count', 'is_successful'
         ]
-        read_only_fields = fields
+        read_only_fields = [
+            'id', 'recipient', 'message', 'message_type', 'status',
+            'user_email', 'order_number', 'at_message_id', 'at_status_code',
+            'at_cost', 'error_message', 'retry_count', 'created_at',
+            'sent_at', 'delivered_at', 'sender_id', 'message_length',
+            'sms_count', 'is_successful'
+        ]
 
 
 class SMSLogDetailSerializer(serializers.ModelSerializer):
@@ -48,7 +54,7 @@ class SMSLogDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = SMSLog
         fields = '__all__'
-        read_only_fields = fields
+        read_only_fields = ['id']
 
 
 class SMSStatsSerializer(serializers.Serializer):
@@ -92,7 +98,13 @@ class EmailLogSerializer(serializers.ModelSerializer):
             'sent_at', 'delivered_at', 'opened_at', 'clicked_at',
             'opens_count', 'clicks_count', 'is_successful'
         ]
-        read_only_fields = fields
+        read_only_fields = [
+            'id', 'recipient', 'subject', 'email_type', 'status',
+            'user_email', 'order_number', 'resend_id', 'from_email',
+            'from_name', 'error_message', 'retry_count', 'created_at',
+            'sent_at', 'delivered_at', 'opened_at', 'clicked_at',
+            'opens_count', 'clicks_count', 'is_successful'
+        ]
 
 
 class EmailLogDetailSerializer(serializers.ModelSerializer):
@@ -104,7 +116,7 @@ class EmailLogDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmailLog
         fields = '__all__'
-        read_only_fields = fields
+        read_only_fields = ['id']
 
 
 class EmailStatsSerializer(serializers.Serializer):

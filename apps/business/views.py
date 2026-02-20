@@ -1,6 +1,7 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema
 from .models import Business, PaymentMethod, BusinessReview
 from .serializers import BusinessSerializer, PaymentMethodSerializer, BusinessReviewSerializer
 from django.db import models
@@ -43,9 +44,12 @@ class BusinessViewSet(viewsets.ModelViewSet):
         business.save()
         return Response({'status': 'Business rejected'})
 
+@extend_schema(tags=['payment-methods'])
 class PaymentMethodsViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = PaymentMethodSerializer
     permission_classes = [permissions.IsAuthenticated]
+    lookup_field = 'pk'
+    queryset = PaymentMethod.objects.all()
 
     def get_queryset(self):
         # Users can only see payment methods of their own businesses

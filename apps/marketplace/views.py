@@ -1,5 +1,5 @@
 # marketplace/views.py
-from rest_framework import generics, status
+from rest_framework import generics, status, serializers
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
@@ -9,6 +9,7 @@ from django.core.cache import cache
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from django.db import models
+from drf_spectacular.utils import extend_schema, inline_serializer
 import logging
 
 logger = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ from .serializers import (
     ProductMarketplaceSerializer, VendorDetailSerializer, VendorSummarySerializer,
     OrderMarketplaceSerializer, HomepageDataSerializer,
     DisputeSerializer,
-    NotificationSerializer, SearchResultSerializer,
+    MarketplaceNotificationSerializer, SearchResultSerializer,
     CategoryListSerializer, BannerSerializer, CheckoutSerializer, CheckoutResponseSerializer
 )
 from .services import (
@@ -130,6 +131,10 @@ class VendorDetailView(generics.RetrieveAPIView):
     queryset = Business.objects.filter(is_verified=True)
 
 
+@extend_schema(
+    responses=CategoryListSerializer(many=True),
+    description='Get all active categories with optimized images',
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticatedOrReadOnly])
 def get_categories(request):
@@ -142,6 +147,10 @@ def get_categories(request):
     serializer = CategoryListSerializer(categories, many=True, context={'request': request})
     return Response(serializer.data)
 
+@extend_schema(
+    responses=HomepageDataSerializer,
+    description='Aggregated homepage data with pagination support',
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticatedOrReadOnly])
 def homepage_data(request):
@@ -169,6 +178,10 @@ def homepage_data(request):
     return Response(serializer.data)
 
 
+@extend_schema(
+    responses=SearchResultSerializer,
+    description='Advanced product search',
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticatedOrReadOnly])
 def search_products(request):
@@ -265,6 +278,10 @@ def search_products(request):
         }, status=status.HTTP_200_OK)  # Return 200 instead of 500 for better UX
 
 
+@extend_schema(
+    responses=VendorSummarySerializer(many=True),
+    description='Search vendors/businesses',
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticatedOrReadOnly])
 def search_vendors(request):
@@ -285,6 +302,13 @@ def search_vendors(request):
     })
 
 
+@extend_schema(
+    responses=inline_serializer(
+        name='SearchSuggestionsResponse',
+        fields={'suggestions': serializers.ListField(child=serializers.CharField())},
+    ),
+    description='Get search suggestions',
+)
 @api_view(['GET'])
 def search_suggestions(request):
     """Get search suggestions"""
@@ -326,6 +350,11 @@ class OrderDetailView(generics.RetrieveAPIView):
 
 
 # Checkout Views
+@extend_schema(
+    request=CheckoutSerializer,
+    responses=CheckoutResponseSerializer,
+    description='Process checkout with cart data from frontend',
+)
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def process_checkout(request):
@@ -534,6 +563,22 @@ def process_checkout(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@extend_schema(
+    request=inline_serializer(
+        name='MpesaCallbackRequest',
+        fields={
+            'Body': serializers.DictField(),
+        },
+    ),
+    responses=inline_serializer(
+        name='MpesaCallbackResponse',
+        fields={
+            'ResultCode': serializers.IntegerField(),
+            'ResultDesc': serializers.CharField(),
+        },
+    ),
+    description='Handle M-Pesa payment callback from Safaricom',
+)
 @api_view(['POST'])
 def mpesa_callback(request):
     """
@@ -667,7 +712,7 @@ class BannerCreateView(generics.CreateAPIView):
 
 class NotificationListView(generics.ListAPIView):
     """User notifications"""
-    serializer_class = NotificationSerializer
+    serializer_class = MarketplaceNotificationSerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
@@ -676,6 +721,19 @@ class NotificationListView(generics.ListAPIView):
         ).order_by('-created_at')
 
 
+@extend_schema(
+    request=inline_serializer(
+        name='MarkNotificationsReadRequest',
+        fields={
+            'notification_ids': serializers.ListField(child=serializers.IntegerField(), required=False),
+        },
+    ),
+    responses=inline_serializer(
+        name='MarkNotificationsReadResponse',
+        fields={'message': serializers.CharField()},
+    ),
+    description='Mark notifications as read',
+)
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def mark_notifications_read(request):
@@ -698,6 +756,22 @@ def mark_notifications_read(request):
 
 
 # Analytics endpoint for vendors (bonus)
+@extend_schema(
+    responses=inline_serializer(
+        name='VendorAnalyticsResponse',
+        fields={
+            'business_name': serializers.CharField(),
+            'total_products': serializers.IntegerField(),
+            'total_orders': serializers.IntegerField(),
+            'pending_orders': serializers.IntegerField(),
+            'total_revenue': serializers.FloatField(),
+            'avg_rating': serializers.FloatField(),
+            'verification_status': serializers.CharField(),
+            'is_verified': serializers.BooleanField(),
+        },
+    ),
+    description='Basic analytics for vendor dashboard',
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def vendor_analytics(request):

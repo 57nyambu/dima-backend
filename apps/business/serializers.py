@@ -1,4 +1,6 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
+from drf_spectacular.types import OpenApiTypes
 from .models import Business, PaymentMethod, BusinessReview
 from apps.products.models import Product
 
@@ -113,6 +115,7 @@ class BusinessReviewSerializer(serializers.ModelSerializer):
                  'rating', 'comment', 'orders_stats', 'mpesa_code', 'created_at']
         read_only_fields = ['user', 'created_at', 'orders_stats']
 
+    @extend_schema_field(OpenApiTypes.OBJECT)
     def get_orders_stats(self, obj):
         return {
             'completed': obj.orders_complete,

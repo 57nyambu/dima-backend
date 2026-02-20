@@ -131,7 +131,7 @@ class UserDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = ['email', 'role', 'date_joined', 'last_login', 'is_active', 'is_seller']
-        read_only_fields = fields
+        read_only_fields = ['email', 'role', 'date_joined', 'last_login', 'is_active', 'is_seller']
 
 
 class GoogleAuthSerializer(serializers.Serializer):

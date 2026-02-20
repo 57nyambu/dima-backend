@@ -141,7 +141,7 @@ AUTH_PASSWORD_VALIDATORS = [
 SPECTACULAR_SETTINGS = {
     "TITLE": "Dima Api Documentation",
     "DESCRIPTION": "Dima is a platform that allows users to create and manage their own online stores, providing a seamless shopping experience for customers.",
-    "VERSION": "1.0.0",
+    "VERSION": "2.0.0",
     "SERVER_INCLUDE_SCHEMA": False,
 }
 
